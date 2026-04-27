@@ -747,6 +747,7 @@ function newGame(mapIdx){
     waveCount:0,
     paused:false,
     time:0,
+    unlockBanner:null,  // {msg,timer}
   };
 }
 
@@ -786,10 +787,13 @@ function updateGame(dt, now){
       G.state='prep';
       G.gold+=Math.min(60, 20+G.wave*3);
       G.score+=G.wave*50;
+      const msg=UNLOCK_MSGS[G.wave];
+      if(msg) G.unlockBanner={msg, slots:`+2 tower slots (now ${getTowerLimit(G.wave)})`, timer:3.5};
+      if(!isUnlocked(G.selectedType, G.wave)) G.selectedType='gun';
     }
   }
 
-  particles.forEach(()=>{}); // handled globally
+  if(G.unlockBanner){ G.unlockBanner.timer-=dt; if(G.unlockBanner.timer<=0) G.unlockBanner=null; }
   updateParticles(dt);
   updateBullets(dt);
 }
@@ -807,6 +811,21 @@ function endGame(){
   G.state='gameOver';
   SFX.gameOver();
 }
+
+// ── Progression system ────────────────────────────────────────────────
+const UNLOCK_WAVE={flame:2,bomb:4,freeze:5,trigun:6};  // wave number at which type unlocks
+const UNLOCK_MSGS={
+  1:'Upgrades available! (Level 2)',
+  2:'Flame Tower unlocked!',
+  3:'Max upgrades unlocked! (Level 3)',
+  4:'Bomb Tower unlocked!',
+  5:'Freeze Tower unlocked!',
+  6:'Tri-Gun unlocked! All towers available.',
+};
+function getTowerLimit(w){ return 5+w*2; }
+function getMaxUpgrade(w){ return w>=3?3:w>=1?2:1; }
+function isUnlocked(kind,w){ const u=UNLOCK_WAVE[kind]; return u===undefined||w>=u; }
+function placedCount(){ return Object.keys(G.towers).length; }
 
 // ── HUD / UI rendering ────────────────────────────────────────────────
 function drawHUD(now){
@@ -851,19 +870,27 @@ function drawPanelPortrait(now){
   X.strokeStyle='rgba(60,120,200,0.3)'; X.lineWidth=1;
   X.beginPath(); X.moveTo(0,PY); X.lineTo(LW,PY); X.stroke();
 
+  // tower count header
+  const placed=placedCount(), limit=getTowerLimit(G.wave);
+  X.fillStyle=placed>=limit?'#f84':'#fd0'; X.font='bold 10px monospace'; X.textAlign='right';
+  X.fillText(`TOWERS ${placed}/${limit}`, LW-px-2, py+5);
+
   // 5 tower buttons in a horizontal row
   const nbtn=TORDER.length;
-  const bw=Math.floor(pw/nbtn), bh=84, by=py+6;
+  const bw=Math.floor(pw/nbtn), bh=84, by=py+9;
   for(let i=0;i<nbtn;i++){
     const kind=TORDER[i];
     const td=TDEFS[kind];
+    const locked=!isUnlocked(kind,G.wave);
+    const isNew=UNLOCK_WAVE[kind]===G.wave;
     const sel=(G.selectedType===kind);
     const canAfford=(G.gold>=td.cost);
     const bx=px+i*bw;
     roundRect(X,bx+2,by,bw-4,bh,6);
     X.fillStyle=sel?'rgba(30,70,120,0.9)':'rgba(15,25,45,0.8)'; X.fill();
-    X.strokeStyle=sel?'#4af':'rgba(60,100,160,0.4)'; X.lineWidth=sel?2:1; X.stroke();
-    if(!canAfford) X.globalAlpha=0.45;
+    X.strokeStyle=locked?'rgba(60,60,80,0.3)':isNew?'#8f8':sel?'#4af':'rgba(60,100,160,0.4)';
+    X.lineWidth=(sel||isNew)?2:1; X.stroke();
+    if(locked) X.globalAlpha=0.28; else if(!canAfford) X.globalAlpha=0.45;
     X.save(); X.translate(bx+bw/2, by+28);
     const dT={kind,angle:-Math.PI/4,level:1,flashTimer:0,showRange:false};
     X.scale(0.5,0.5);
@@ -875,12 +902,17 @@ function drawPanelPortrait(now){
       case 'trigun': drawTrigunTower(X,0,0,20,dT,now,1); break;
     }
     X.restore();
-    X.fillStyle=sel?'#8cf':'#aac'; X.font='bold 9px Segoe UI'; X.textAlign='center';
+    X.fillStyle=locked?'#556':sel?'#8cf':'#aac'; X.font='bold 9px Segoe UI'; X.textAlign='center';
     X.fillText(td.name, bx+bw/2, by+54);
-    X.fillStyle=canAfford?'#fd0':'#a66'; X.font='bold 9px monospace';
-    X.fillText('⬡'+td.cost, bx+bw/2, by+66);
-    X.fillStyle='#446'; X.font='8px monospace';
-    X.fillText(td.key, bx+bw/2, by+76);
+    if(locked){
+      X.fillStyle='#556'; X.font='8px monospace';
+      X.fillText(`W${UNLOCK_WAVE[kind]}`, bx+bw/2, by+66);
+    } else {
+      X.fillStyle=canAfford?'#fd0':'#a66'; X.font='bold 9px monospace';
+      X.fillText('⬡'+td.cost, bx+bw/2, by+66);
+      if(isNew){ X.fillStyle='#8f8'; X.font='bold 8px monospace'; X.fillText('NEW!',bx+bw/2,by+76); }
+      else { X.fillStyle='#446'; X.font='8px monospace'; X.fillText(td.key,bx+bw/2,by+76); }
+    }
     X.globalAlpha=1;
   }
 
@@ -891,15 +923,18 @@ function drawPanelPortrait(now){
     const t=G.towers[G.selectedTower];
     if(t){
       const td2=TDEFS[t.kind];
+      const maxUpg=getMaxUpgrade(G.wave);
       const upgCost=30*t.level;
-      const canUpg=G.gold>=upgCost&&t.level<3;
+      const upgLocked=t.level>=maxUpg&&t.level<3;
+      const canUpg=G.gold>=upgCost&&t.level<maxUpg;
       const sellVal=Math.floor(td2.cost*t.level*0.6);
       const hw=Math.floor(pw/2)-4;
       roundRect(X,px,y,hw,34,6);
-      X.fillStyle=canUpg?'rgba(20,60,20,0.8)':'rgba(40,20,20,0.5)'; X.fill();
-      X.strokeStyle=canUpg?'#4a4':'#644'; X.lineWidth=1.5; X.stroke();
-      X.fillStyle=canUpg?'#6f6':'#866'; X.font='bold 10px monospace'; X.textAlign='center';
-      X.fillText(t.level<3?`▲ UPG ⬡${upgCost}`:'MAX LV', px+hw/2, y+22);
+      X.fillStyle=canUpg?'rgba(20,60,20,0.8)':upgLocked?'rgba(20,20,40,0.7)':'rgba(40,20,20,0.5)'; X.fill();
+      X.strokeStyle=canUpg?'#4a4':upgLocked?'#446':'#644'; X.lineWidth=1.5; X.stroke();
+      X.fillStyle=canUpg?'#6f6':upgLocked?'#66a':'#866'; X.font='bold 10px monospace'; X.textAlign='center';
+      const upgLabel=t.level>=3?'MAX LV':upgLocked?`W${t.level===1?1:3}`:`▲⬡${upgCost}`;
+      X.fillText(upgLabel, px+hw/2, y+22);
       roundRect(X,px+hw+8,y,hw,34,6);
       X.fillStyle='rgba(60,15,15,0.8)'; X.fill();
       X.strokeStyle='#844'; X.lineWidth=1; X.stroke();
@@ -941,25 +976,31 @@ function drawPanel(now){
   X.beginPath(); X.moveTo(px,52); X.lineTo(px,LH); X.stroke();
 
   let y=62;
-  X.textAlign='center'; X.fillStyle='#8af'; X.font='bold 13px monospace';
-  X.fillText('TOWERS', px+pw/2, y); y+=16;
+  const placed=placedCount(), limit=getTowerLimit(G.wave);
+  X.textAlign='left'; X.fillStyle='#8af'; X.font='bold 13px monospace';
+  X.fillText('TOWERS', px+6, y);
+  X.fillStyle=placed>=limit?'#f84':'#fd0'; X.textAlign='right';
+  X.fillText(`${placed}/${limit}`, px+pw-6, y);
+  y+=16;
 
   // tower buttons
   for(const kind of TORDER){
     const td=TDEFS[kind];
+    const locked=!isUnlocked(kind,G.wave);
+    const isNew=UNLOCK_WAVE[kind]===G.wave;
     const sel=(G.selectedType===kind);
     const canAfford=(G.gold>=td.cost);
     const bx=px+6, bw=pw-12, bh=56;
 
-    // button bg
     roundRect(X,bx,y,bw,bh,6);
     X.fillStyle=sel?'rgba(30,70,120,0.9)':'rgba(15,25,45,0.8)';
     X.fill();
-    X.strokeStyle=sel?'#4af':'rgba(60,100,160,0.4)'; X.lineWidth=sel?2:1; X.stroke();
+    X.strokeStyle=locked?'rgba(60,60,80,0.3)':isNew?'#8f8':sel?'#4af':'rgba(60,100,160,0.4)';
+    X.lineWidth=(sel||isNew)?2:1; X.stroke();
 
-    if(!canAfford){ X.globalAlpha=0.45; }
+    if(locked){ X.globalAlpha=0.28; }
+    else if(!canAfford){ X.globalAlpha=0.45; }
 
-    // mini tower icon
     X.save(); X.translate(bx+28,y+bh/2);
     const dummyT={kind,angle:-Math.PI/4,level:1,flashTimer:0,showRange:false};
     X.scale(0.5,0.5);
@@ -972,12 +1013,17 @@ function drawPanel(now){
     }
     X.restore();
 
-    X.fillStyle=sel?'#8cf':'#aac'; X.font='bold 12px Segoe UI'; X.textAlign='left';
+    X.fillStyle=locked?'#556':sel?'#8cf':'#aac'; X.font='bold 12px Segoe UI'; X.textAlign='left';
     X.fillText(`${td.key}. ${td.name}`, bx+52, y+18);
-    X.fillStyle=canAfford?'#fd0':'#a66'; X.font='bold 11px monospace';
-    X.fillText(`⬡${td.cost}`, bx+52, y+32);
-    X.fillStyle='#667'; X.font='10px Segoe UI';
-    X.fillText(td.desc, bx+52, y+44);
+    if(locked){
+      X.fillStyle='#556'; X.font='10px monospace';
+      X.fillText(`Wave ${UNLOCK_WAVE[kind]}`, bx+52, y+32);
+    } else {
+      X.fillStyle=canAfford?'#fd0':'#a66'; X.font='bold 11px monospace';
+      X.fillText(`⬡${td.cost}`, bx+52, y+32);
+      if(isNew){ X.fillStyle='#8f8'; X.font='bold 9px monospace'; X.fillText('NEW!', bx+52, y+44); }
+      else { X.fillStyle='#667'; X.font='10px Segoe UI'; X.fillText(td.desc, bx+52, y+44); }
+    }
 
     X.globalAlpha=1;
     y+=bh+4;
@@ -994,15 +1040,18 @@ function drawPanel(now){
     const t=G.towers[G.selectedTower];
     if(t){
       const td2=TDEFS[t.kind];
+      const maxUpg=getMaxUpgrade(G.wave);
       X.fillStyle='#cde'; X.font='bold 13px monospace'; X.textAlign='center';
       X.fillText(`${td2.name} Lv${t.level}`, px+pw/2, y); y+=16;
       const upgCost=30*t.level;
-      const canUpg=G.gold>=upgCost && t.level<3;
+      const upgLocked=t.level>=maxUpg&&t.level<3;
+      const canUpg=G.gold>=upgCost&&t.level<maxUpg;
       roundRect(X,px+8,y,pw-16,34,6);
-      X.fillStyle=canUpg?'rgba(20,60,20,0.8)':'rgba(40,20,20,0.5)'; X.fill();
-      X.strokeStyle=canUpg?'#4a4':'#644'; X.lineWidth=1.5; X.stroke();
-      X.fillStyle=canUpg?'#6f6':'#866'; X.font='bold 12px monospace'; X.textAlign='center';
-      X.fillText(t.level<3?`UPGRADE ⬡${upgCost}`:'MAX LEVEL', px+pw/2, y+20);
+      X.fillStyle=canUpg?'rgba(20,60,20,0.8)':upgLocked?'rgba(20,20,40,0.7)':'rgba(40,20,20,0.5)'; X.fill();
+      X.strokeStyle=canUpg?'#4a4':upgLocked?'#446':'#644'; X.lineWidth=1.5; X.stroke();
+      X.fillStyle=canUpg?'#6f6':upgLocked?'#66a':'#866'; X.font='bold 12px monospace'; X.textAlign='center';
+      const upgLabel=t.level>=3?'MAX LEVEL':upgLocked?`Lv${t.level+1}: Wave ${t.level===1?1:3}`:`UPGRADE ⬡${upgCost}`;
+      X.fillText(upgLabel, px+pw/2, y+20);
       y+=44;
 
       // sell button
@@ -1108,6 +1157,22 @@ function drawGame(now){
     X.fillText('PAUSED', GX+COLS*CS/2, GY+ROWS*CS/2-20);
     X.fillStyle='#667'; X.font='16px monospace';
     X.fillText('Press P or tap Resume', GX+COLS*CS/2, GY+ROWS*CS/2+20);
+  }
+
+  // unlock banner
+  if(G.unlockBanner&&G.unlockBanner.timer>0){
+    const fade=Math.min(1,G.unlockBanner.timer, 3.5-G.unlockBanner.timer+0.001)*1.2;
+    X.globalAlpha=Math.min(1,fade);
+    const bx=GX+COLS*CS/2, by=GY+28;
+    X.fillStyle='rgba(10,30,60,0.88)';
+    roundRect(X,bx-170,by-22,340,52,10); X.fill();
+    X.strokeStyle='#4f8'; X.lineWidth=1.5;
+    roundRect(X,bx-170,by-22,340,52,10); X.stroke();
+    X.fillStyle='#8f8'; X.font='bold 14px monospace'; X.textAlign='center';
+    X.fillText(G.unlockBanner.msg, bx, by);
+    X.fillStyle='#fd0'; X.font='11px monospace';
+    X.fillText(G.unlockBanner.slots, bx, by+18);
+    X.globalAlpha=1;
   }
 
   if(G.state==='gameOver'){
@@ -1343,7 +1408,8 @@ function panelClickLandscape(lx,ly){
   let ty=62+16;
   for(const kind of TORDER){
     if(lx>=PX+6&&lx<=PX+PW-6&&ly>=ty&&ly<=ty+56){
-      G.selectedType=kind; G.selectedTower=null; return true;
+      if(isUnlocked(kind,G.wave)){ G.selectedType=kind; G.selectedTower=null; }
+      return true;
     }
     ty+=60;
   }
@@ -1353,7 +1419,7 @@ function panelClickLandscape(lx,ly){
     if(t){
       const upgCost=30*t.level;
       if(lx>=PX+8&&lx<=PX+PW-8&&ly>=ty&&ly<=ty+34){
-        if(t.level<3&&G.gold>=upgCost){ G.gold-=upgCost; t.level++; SFX.place(); }
+        if(t.level<getMaxUpgrade(G.wave)&&G.gold>=upgCost){ G.gold-=upgCost; t.level++; SFX.place(); }
         return true;
       }
       if(lx>=PX+8&&lx<=PX+PW-8&&ly>=ty+44&&ly<=ty+72){
@@ -1372,7 +1438,8 @@ function panelClickPortrait(lx,ly){
   for(let i=0;i<TORDER.length;i++){
     const bx=px+i*bw;
     if(lx>=bx+2&&lx<=bx+bw-2&&ly>=by&&ly<=by+bh){
-      G.selectedType=TORDER[i]; G.selectedTower=null; return true;
+      if(isUnlocked(TORDER[i],G.wave)){ G.selectedType=TORDER[i]; G.selectedTower=null; }
+      return true;
     }
   }
   let y=by+bh+10;
@@ -1382,7 +1449,7 @@ function panelClickPortrait(lx,ly){
       const hw=Math.floor(pw/2)-4;
       const upgCost=30*t.level;
       if(lx>=px&&lx<=px+hw&&ly>=y&&ly<=y+34){
-        if(t.level<3&&G.gold>=upgCost){ G.gold-=upgCost; t.level++; SFX.place(); }
+        if(t.level<getMaxUpgrade(G.wave)&&G.gold>=upgCost){ G.gold-=upgCost; t.level++; SFX.place(); }
         return true;
       }
       if(lx>=px+hw+8&&lx<=px+hw+8+hw&&ly>=y&&ly<=y+34){
@@ -1428,6 +1495,8 @@ function handleClick(lx,ly){
     }
     if((G.state==='prep'||G.state==='wave')&&!G.paused){
       const td=TDEFS[G.selectedType];
+      if(!isUnlocked(G.selectedType,G.wave)) return;
+      if(placedCount()>=getTowerLimit(G.wave)) return;
       if(G.gold>=td.cost){
         G.gold-=td.cost;
         G.towers[key]=new Tower(gc,gr,G.selectedType);
