@@ -79,8 +79,85 @@ function getAC() {
   if (!AC) { try { AC = new (window.AudioContext||window.webkitAudioContext)(); } catch(e){} }
   return AC;
 }
+// ── Background Music ──────────────────────────────────────────────────
+const BGM = (() => {
+  let ac, mg, playing=false, nxt=0, barIdx=0;
+  const BPM=118, b=60/BPM;
+
+  function note(f, t, dur, v, type='sine', det=0){
+    if(!playing||!ac) return;
+    const o=ac.createOscillator(), g=ac.createGain();
+    o.type=type; o.frequency.value=f; o.detune.value=det;
+    g.gain.setValueAtTime(0,t);
+    g.gain.linearRampToValueAtTime(v, t+Math.min(0.022,dur*0.12));
+    g.gain.exponentialRampToValueAtTime(0.001, t+dur);
+    o.connect(g); g.connect(mg); o.start(t); o.stop(t+dur+0.05);
+  }
+
+  // 4-bar chord loop: Am → F → C → G
+  const PROG=[
+    {bass:55,    pad:[110,  130.8, 164.8]},
+    {bass:87.3,  pad:[87.3, 110,   130.8]},
+    {bass:130.8, pad:[130.8,164.8, 196  ]},
+    {bass:98,    pad:[98,   123.5, 164.8]},
+  ];
+  // A minor pentatonic arpeggio: A3 C4 D4 E4 G4
+  const ARP=[
+    [0,   220,  b*0.38, 0.055],
+    [0.5, 261.6,b*0.38, 0.044],
+    [1,   293.7,b*0.38, 0.055],
+    [1.5, 329.6,b*0.38, 0.044],
+    [2,   392,  b*0.32, 0.060],
+    [2.5, 329.6,b*0.38, 0.044],
+    [3,   261.6,b*0.48, 0.055],
+    [3.5, 220,  b*0.38, 0.038],
+  ];
+
+  function schedBar(t, bi){
+    const p=PROG[bi%4];
+    // chord pad — two detuned layers for space warmth
+    p.pad.forEach(f=>{
+      note(f, t, b*3.92, 0.025, 'sine');
+      note(f, t, b*3.92, 0.011, 'sawtooth', 7);
+    });
+    // bass
+    note(p.bass,   t,     b*0.60, 0.11, 'triangle');
+    note(p.bass,   t+b*2, b*0.50, 0.08, 'triangle');
+    note(p.bass/2, t,     b*0.28, 0.04, 'sine');
+    // arpeggio lead
+    ARP.forEach(([beat,f,dur,v])=> note(f, t+beat*b, dur, v));
+    // high sparkle accents
+    if(bi%2===0) note(880,    t+b*1.5, b*0.18, 0.013);
+    if(bi%4===1) note(1108.7, t+b*3.0, b*0.13, 0.010);
+    if(bi%4===3) note(660,    t+b*0.5, b*0.15, 0.012);
+  }
+
+  function tick(){
+    if(!playing) return;
+    const now=ac.currentTime;
+    while(nxt < now+0.55){ schedBar(nxt, barIdx++); nxt+=b*4; }
+    setTimeout(tick, 220);
+  }
+
+  return {
+    start(){
+      ac=getAC(); if(!ac||playing) return;
+      mg=ac.createGain(); mg.gain.value=0.38; mg.connect(ac.destination);
+      playing=true; nxt=ac.currentTime+0.08; barIdx=0; tick();
+    },
+    stop(){
+      if(!playing) return; playing=false;
+      if(mg){ const n=ac.currentTime; mg.gain.setValueAtTime(mg.gain.value,n); mg.gain.exponentialRampToValueAtTime(0.001,n+1.5); }
+    },
+    get isPlaying(){ return playing; },
+  };
+})();
+
 ['touchstart','click','keydown'].forEach(ev =>
-  document.addEventListener(ev, () => { const a=getAC(); if(a&&a.state==='suspended') a.resume(); }, {passive:true})
+  document.addEventListener(ev, ()=>{
+    const a=getAC(); if(a&&a.state==='suspended') a.resume();
+    if(!BGM.isPlaying) BGM.start();
+  }, {passive:true})
 );
 
 function playTone(freq, dur, vol=0.18, type='square', detune=0) {
@@ -747,7 +824,7 @@ function newGame(mapIdx){
     waveCount:0,
     paused:false,
     time:0,
-    unlockBanner:null,  // {msg,timer}
+    popupData:null,  // {kind,title,desc,angle} — unlock modal
   };
 }
 
@@ -787,13 +864,13 @@ function updateGame(dt, now){
       G.state='prep';
       G.gold+=Math.min(60, 20+G.wave*3);
       G.score+=G.wave*50;
-      const msg=UNLOCK_MSGS[G.wave];
-      if(msg) G.unlockBanner={msg, slots:`+2 tower slots (now ${getTowerLimit(G.wave)})`, timer:3.5};
+      const pi=POPUP_INFO[G.wave];
+      if(pi) G.popupData={...pi, angle:0, slots:`+2 tower slots  (now ${getTowerLimit(G.wave)})`};
       if(!isUnlocked(G.selectedType, G.wave)) G.selectedType='gun';
     }
   }
 
-  if(G.unlockBanner){ G.unlockBanner.timer-=dt; if(G.unlockBanner.timer<=0) G.unlockBanner=null; }
+  if(G.popupData) G.popupData.angle+=dt*1.8;
   updateParticles(dt);
   updateBullets(dt);
 }
@@ -810,17 +887,19 @@ function startWave(){
 function endGame(){
   G.state='gameOver';
   SFX.gameOver();
+  BGM.stop();
 }
 
 // ── Progression system ────────────────────────────────────────────────
-const UNLOCK_WAVE={flame:2,bomb:4,freeze:5,trigun:6};  // wave number at which type unlocks
-const UNLOCK_MSGS={
-  1:'Upgrades available! (Level 2)',
-  2:'Flame Tower unlocked!',
-  3:'Max upgrades unlocked! (Level 3)',
-  4:'Bomb Tower unlocked!',
-  5:'Freeze Tower unlocked!',
-  6:'Tri-Gun unlocked! All towers available.',
+const UNLOCK_WAVE={flame:2,bomb:4,freeze:5,trigun:6};
+const POPUP_INFO={
+  1:{kind:'upgrade2', title:'Level 2 Upgrades',    desc:'Upgrade your Gun Tower to boost\ndamage output and range.'},
+  2:{kind:'flame',    title:'Flame Tower',          desc:'Burns enemies over time with\nsearing fire damage.'},
+  3:{kind:'upgrade3', title:'Level 3 — Max Power',  desc:'Unlock the full potential of\nevery tower on the field!'},
+  4:{kind:'bomb',     title:'Bomb Tower',           desc:'Massive area explosions that\nwipe out enemy clusters.'},
+  5:{kind:'freeze',   title:'Freeze Tower',         desc:'Locks enemies in ice, giving\nyour towers extra firing time.'},
+  6:{kind:'trigun',   title:'Tri-Gun Tower',        desc:'Fires at three targets at once —\nthe ultimate defensive weapon.'},
+  7:{kind:'goodluck', title:'',                     desc:''},
 };
 function getTowerLimit(w){ return 5+w*2; }
 function getMaxUpgrade(w){ return w>=3?3:w>=1?2:1; }
@@ -1085,6 +1164,130 @@ function drawPanel(now){
   }
 }
 
+// ── Unlock popup modal ────────────────────────────────────────────────
+function drawUnlockPopup(now){
+  const pd=G.popupData;
+  const isGL=pd.kind==='goodluck';
+  const a=pd.angle;
+
+  // full-screen dim
+  X.fillStyle='rgba(0,4,14,0.80)'; X.fillRect(0,0,LW,LH);
+
+  // panel
+  const pw=isPortrait?Math.min(LW-24,420):440, ph=isGL?280:360;
+  const bx=(LW-pw)/2, by=(LH-ph)/2;
+
+  const pg=X.createLinearGradient(bx,by,bx,by+ph);
+  pg.addColorStop(0,'rgba(6,16,38,0.99)'); pg.addColorStop(1,'rgba(3,8,22,0.99)');
+  X.fillStyle=pg; roundRect(X,bx,by,pw,ph,18); X.fill();
+  // glow border
+  X.strokeStyle=isGL?'#ffe066':'#4af'; X.lineWidth=2;
+  X.shadowColor=isGL?'#ffe066':'#4af'; X.shadowBlur=14;
+  roundRect(X,bx,by,pw,ph,18); X.stroke();
+  X.shadowBlur=0;
+
+  const cx=bx+pw/2;
+
+  if(isGL){
+    // ── Good Luck panel ─────────────────────────────────────────────
+    X.fillStyle='#ffe066'; X.font='bold 22px monospace'; X.textAlign='center';
+    X.fillText('Good Luck, Commander!', cx, by+52);
+    X.fillStyle='#acd'; X.font='14px Segoe UI';
+    X.fillText('All resources are now available.', cx, by+80);
+    X.fillStyle='#78a'; X.font='13px Segoe UI';
+    X.fillText('The fate of the galaxy is in your hands.', cx, by+102);
+
+    // all 5 mini towers orbiting
+    const orbitR=62, count=TORDER.length;
+    TORDER.forEach((kind,i)=>{
+      const oa=a*0.6+i*Math.PI*2/count;
+      const tx=cx+Math.cos(oa)*orbitR, ty=by+165+Math.sin(oa)*orbitR*0.55;
+      X.save(); X.translate(tx,ty);
+      const dT={kind,angle:a+i,level:3,flashTimer:0,showRange:false};
+      X.scale(0.45,0.45);
+      switch(kind){
+        case 'gun':    drawGunTower(X,0,0,20,dT,now,3); break;
+        case 'flame':  drawFlameTower(X,0,0,20,dT,now,3); break;
+        case 'bomb':   drawBombTower(X,0,0,20,dT,now,3); break;
+        case 'freeze': drawFreezeTower(X,0,0,20,dT,now,3); break;
+        case 'trigun': drawTrigunTower(X,0,0,20,dT,now,3); break;
+      }
+      X.restore();
+    });
+  } else {
+    // ── Normal unlock panel ──────────────────────────────────────────
+    X.fillStyle='#8f8'; X.font='bold 15px monospace'; X.textAlign='center';
+    X.fillText('CONGRATULATIONS, COMMANDER!', cx, by+42);
+    X.fillStyle='#acd'; X.font='13px Segoe UI';
+    X.fillText('You have unlocked a new resource:', cx, by+64);
+
+    // orbiting particles
+    const orbitR=58;
+    for(let i=0;i<10;i++){
+      const oa=a*1.4+i*Math.PI*2/10;
+      X.fillStyle=`rgba(100,200,255,${0.35+0.25*Math.sin(oa+now*4)})`;
+      X.beginPath(); X.arc(cx+Math.cos(oa)*orbitR, by+168+Math.sin(oa)*orbitR*0.5, 3,0,Math.PI*2); X.fill();
+    }
+
+    // main spinning icon
+    X.save(); X.translate(cx, by+168);
+    if(pd.kind==='upgrade2'||pd.kind==='upgrade3'){
+      const lvl=pd.kind==='upgrade2'?2:3;
+      // gun tower at center
+      const dT={kind:'gun',angle:a*0.5,level:lvl,flashTimer:0,showRange:false};
+      X.save(); X.rotate(a*0.15); drawGunTower(X,0,0,28,dT,now,lvl); X.restore();
+      // level badge orbiting around it
+      for(let i=0;i<3;i++){
+        const ba=a*2.2+i*Math.PI*2/3;
+        const bpx=Math.cos(ba)*44, bpy=Math.sin(ba)*44;
+        X.fillStyle=lvl===3?'#ffe066':'#4af';
+        X.beginPath(); X.arc(bpx,bpy,13,0,Math.PI*2); X.fill();
+        X.strokeStyle='#fff'; X.lineWidth=1.5; X.stroke();
+        X.fillStyle='#000'; X.font='bold 12px monospace'; X.textAlign='center';
+        X.fillText(`L${lvl}`,bpx,bpy+5);
+      }
+    } else {
+      // tower type spinning
+      const dT={kind:pd.kind,angle:a*0.7,level:1,flashTimer:0,showRange:false};
+      X.save(); X.rotate(a*0.2);
+      switch(pd.kind){
+        case 'flame':  drawFlameTower(X,0,0,30,dT,now,1); break;
+        case 'bomb':   drawBombTower(X,0,0,30,dT,now,1); break;
+        case 'freeze': drawFreezeTower(X,0,0,30,dT,now,1); break;
+        case 'trigun': drawTrigunTower(X,0,0,30,dT,now,1); break;
+      }
+      X.restore();
+    }
+    X.restore();
+
+    // title
+    X.fillStyle='#fd0'; X.font='bold 17px monospace'; X.textAlign='center';
+    X.fillText(pd.title, cx, by+232);
+    // desc (two lines)
+    X.fillStyle='#8ab'; X.font='12px Segoe UI';
+    pd.desc.split('\n').forEach((line,i)=>X.fillText(line, cx, by+252+i*17));
+
+    // slots badge
+    X.fillStyle='rgba(20,50,20,0.7)';
+    roundRect(X,cx-90,by+288,180,22,8); X.fill();
+    X.strokeStyle='#4a4'; X.lineWidth=1; X.stroke();
+    X.fillStyle='#8f8'; X.font='bold 10px monospace'; X.textAlign='center';
+    X.fillText(pd.slots, cx, by+303);
+  }
+
+  // Continue / tap-anywhere hint
+  const btnW=150, btnH=38, btnX=cx-75, btnY=by+ph-52;
+  roundRect(X,btnX,btnY,btnW,btnH,10);
+  const bg2=X.createLinearGradient(btnX,btnY,btnX,btnY+btnH);
+  bg2.addColorStop(0,isGL?'#4a3800':'#0c3020'); bg2.addColorStop(1,isGL?'#201800':'#061810');
+  X.fillStyle=bg2; X.fill();
+  X.strokeStyle=isGL?'#ffe066':'#4f8'; X.lineWidth=1.5; X.stroke();
+  X.fillStyle=isGL?'#ffe066':'#8f8'; X.font='bold 14px monospace'; X.textAlign='center';
+  X.fillText('CONTINUE', cx, btnY+25);
+  X.fillStyle='rgba(100,120,160,0.6)'; X.font='10px Segoe UI';
+  X.fillText('or tap anywhere', cx, btnY+btnH+14);
+}
+
 // ── Main game renderer ────────────────────────────────────────────────
 function drawGame(now){
   X.globalAlpha=1; X.shadowBlur=0; X.setLineDash([]);
@@ -1159,22 +1362,6 @@ function drawGame(now){
     X.fillText('Press P or tap Resume', GX+COLS*CS/2, GY+ROWS*CS/2+20);
   }
 
-  // unlock banner
-  if(G.unlockBanner&&G.unlockBanner.timer>0){
-    const fade=Math.min(1,G.unlockBanner.timer, 3.5-G.unlockBanner.timer+0.001)*1.2;
-    X.globalAlpha=Math.min(1,fade);
-    const bx=GX+COLS*CS/2, by=GY+28;
-    X.fillStyle='rgba(10,30,60,0.88)';
-    roundRect(X,bx-170,by-22,340,52,10); X.fill();
-    X.strokeStyle='#4f8'; X.lineWidth=1.5;
-    roundRect(X,bx-170,by-22,340,52,10); X.stroke();
-    X.fillStyle='#8f8'; X.font='bold 14px monospace'; X.textAlign='center';
-    X.fillText(G.unlockBanner.msg, bx, by);
-    X.fillStyle='#fd0'; X.font='11px monospace';
-    X.fillText(G.unlockBanner.slots, bx, by+18);
-    X.globalAlpha=1;
-  }
-
   if(G.state==='gameOver'){
     X.fillStyle='rgba(0,5,15,0.85)';
     X.fillRect(GX,GY,COLS*CS,ROWS*CS);
@@ -1189,6 +1376,9 @@ function drawGame(now){
     X.fillStyle='#6a8'; X.font='14px monospace';
     X.fillText('Tap to play again', gx2, gy2+54);
   }
+
+  // unlock popup — draws on top of everything
+  if(G.popupData) drawUnlockPopup(now);
 }
 
 // ── Splash screen ─────────────────────────────────────────────────────
@@ -1243,8 +1433,8 @@ function drawSplash(now){
   X.fillText('TOWER DEFENSE', LW/2, titleY);
 
   // subtitle
-  X.fillStyle='rgba(140,180,255,0.8)'; X.font=isPortrait?'13px Segoe UI':'18px Segoe UI';
-  X.fillText('HTML5 · Instant Load · Animated 3D Graphics', LW/2, titleY+30);
+  X.fillStyle='rgba(180,210,255,0.9)'; X.font=isPortrait?'14px Segoe UI':'20px Segoe UI';
+  X.fillText('Defend the Galaxy from the Alien Invasion.', LW/2, titleY+34);
 
   // feature pills (2×2 grid in portrait, 1 row in landscape)
   const pills=['5 Tower Types','10 Waves','2 Maps','Web Audio'];
@@ -1469,7 +1659,7 @@ function panelClickPortrait(lx,ly){
 }
 
 function handleClick(lx,ly){
-  if(appState.screen==='splash'){ appState.screen='mapSelect'; return; }
+  if(appState.screen==='splash'){ appState.screen='mapSelect'; if(!BGM.isPlaying) BGM.start(); return; }
   if(appState.screen==='mapSelect'){
     MAPS.forEach((_,i)=>{
       const bx=isPortrait?LW/2:LW/2+(i-1)*320;
@@ -1480,7 +1670,10 @@ function handleClick(lx,ly){
     return;
   }
   if(!G) return;
-  if(G.state==='gameOver'){ appState.screen='splash'; G=null; return; }
+  if(G.state==='gameOver'){ appState.screen='splash'; G=null; BGM.start(); return; }
+
+  // any tap dismisses the unlock popup
+  if(G.popupData){ G.popupData=null; return; }
 
   if(isPortrait){ if(panelClickPortrait(lx,ly)) return; }
   else           { if(panelClickLandscape(lx,ly)) return; }
