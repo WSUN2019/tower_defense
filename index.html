@@ -44,9 +44,9 @@ const PW=LW-PX-6;              // panel width
 // ── Tower definitions ────────────────────────────────────────────────
 const TDEFS = {
   gun:    {name:'Gun',     key:'1',cost:5,  dmg:4,  rad:2.0,cd:0.22,multi:1, color:'#4af',  aoe:0, desc:'Fast single shot'},
-  flame:  {name:'Flame',   key:'2',cost:10, dmg:10, rad:1.5,cd:1.1, multi:1, color:'#f84',  aoe:0, dot:1, desc:'Burns over time'},
-  bomb:   {name:'Bomb',    key:'3',cost:20, dmg:35, rad:1.8,cd:3.8, multi:1, color:'#a66',  aoe:1, aoeR:48, desc:'Area explosion'},
-  freeze: {name:'Freeze',  key:'4',cost:18, dmg:2,  rad:1.8,cd:1.9, multi:1, color:'#8ef',  aoe:0, slow:1, desc:'Slows enemies'},
+  flame:  {name:'Flame',   key:'2',cost:10, dmg:10, rad:2.0,cd:1.1, multi:1, color:'#f84',  aoe:0, dot:1, desc:'Burns over time'},
+  bomb:   {name:'Bomb',    key:'3',cost:20, dmg:35, rad:3.0,cd:3.8, multi:1, color:'#a66',  aoe:1, aoeR:48, desc:'Area explosion'},
+  freeze: {name:'Freeze',  key:'4',cost:18, dmg:2,  rad:2.0,cd:1.9, multi:1, color:'#8ef',  aoe:0, slow:1, desc:'Slows enemies'},
   trigun: {name:'Tri-Gun', key:'5',cost:30, dmg:3,  rad:2.0,cd:0.28,multi:3, color:'#c8f',  aoe:0, desc:'Triple shot'},
 };
 const TORDER = ['gun','flame','bomb','freeze','trigun'];
@@ -802,10 +802,10 @@ function drawHUD(now){
   X.fillText(G.lives,32,32);
 
   // gold
-  X.fillStyle='#fd0'; X.font='bold 15px Segoe UI';
-  X.fillText('⬡',80,30);
-  X.fillStyle='#eee'; X.font='bold 18px monospace';
-  X.fillText(G.gold,100,32);
+  X.fillStyle='#fd0'; X.font='bold 14px Segoe UI'; X.textAlign='left';
+  X.fillText('GOLD',78,22);
+  X.fillStyle='#ffe066'; X.font='bold 20px monospace';
+  X.fillText(G.gold,78,42);
 
   // wave / score
   X.textAlign='center';
