@@ -1,0 +1,8 @@
+__pycache__/
+*.py[cod]
+build/web-cache/
+dist/
+*.egg-info/
+.env
+scores.json
+game_config.json
