@@ -21,25 +21,35 @@ canvas{display:block;position:absolute;top:0;left:0}
 const C = document.getElementById('c');
 const X = C.getContext('2d');
 
-// ── Logical canvas size ──────────────────────────────────────────────
-const LW = 960, LH = 640;
-let scale = 1, offX = 0, offY = 0;
+// ── Layout (recomputed on resize) ────────────────────────────────────
+let LW, LH, isPortrait=false;
+let scale=1, offX=0, offY=0;
+const COLS=10, ROWS=7;
+let CS, GX, GY, PX, PY, PW, PH;
 
-function resize() {
-  C.width  = window.innerWidth;
-  C.height = window.innerHeight;
-  scale = Math.min(C.width/LW, C.height/LH);
-  offX = (C.width  - LW*scale)/2;
-  offY = (C.height - LH*scale)/2;
+function computeLayout(){
+  isPortrait = window.innerHeight > window.innerWidth * 1.15;
+  if(isPortrait){
+    LW=480; LH=760; CS=44; GX=20; GY=52;
+    PX=0; PY=GY+ROWS*CS+12;   // 52+308+12 = 372
+    PW=LW; PH=LH-PY;           // 760-372 = 388
+  } else {
+    LW=960; LH=640; CS=64; GX=10; GY=56;
+    PX=GX+COLS*CS+14; PY=52;
+    PW=LW-PX-6; PH=LH-PY;
+  }
+}
+
+function resize(){
+  C.width=window.innerWidth;
+  C.height=window.innerHeight;
+  computeLayout();
+  scale=Math.min(C.width/LW, C.height/LH);
+  offX=(C.width-LW*scale)/2;
+  offY=(C.height-LH*scale)/2;
 }
 window.addEventListener('resize', resize);
 resize();
-
-// ── Grid constants ───────────────────────────────────────────────────
-const COLS=10, ROWS=7, CS=64;  // cell size
-const GX=10, GY=56;            // grid top-left in logical coords
-const PX=GX+COLS*CS+14;        // panel x
-const PW=LW-PX-6;              // panel width
 
 // ── Tower definitions ────────────────────────────────────────────────
 const TDEFS = {
@@ -825,11 +835,99 @@ function drawHUD(now){
   // pause indicator
   if(G.paused){
     X.fillStyle='rgba(255,200,0,0.9)'; X.font='bold 14px monospace'; X.textAlign='right';
-    X.fillText('⏸ PAUSED', LW-PW-20, 32);
+    X.fillText('⏸ PAUSED', isPortrait ? LW-10 : LW-PW-20, 32);
+  }
+}
+
+function drawPanelPortrait(now){
+  const px=8, py=PY, pw=LW-16;
+
+  // panel background
+  X.fillStyle='rgba(8,14,28,0.97)';
+  X.fillRect(0,PY-1,LW,PH+2);
+  X.strokeStyle='rgba(60,120,200,0.3)'; X.lineWidth=1;
+  X.beginPath(); X.moveTo(0,PY); X.lineTo(LW,PY); X.stroke();
+
+  // 5 tower buttons in a horizontal row
+  const nbtn=TORDER.length;
+  const bw=Math.floor(pw/nbtn), bh=84, by=py+6;
+  for(let i=0;i<nbtn;i++){
+    const kind=TORDER[i];
+    const td=TDEFS[kind];
+    const sel=(G.selectedType===kind);
+    const canAfford=(G.gold>=td.cost);
+    const bx=px+i*bw;
+    roundRect(X,bx+2,by,bw-4,bh,6);
+    X.fillStyle=sel?'rgba(30,70,120,0.9)':'rgba(15,25,45,0.8)'; X.fill();
+    X.strokeStyle=sel?'#4af':'rgba(60,100,160,0.4)'; X.lineWidth=sel?2:1; X.stroke();
+    if(!canAfford) X.globalAlpha=0.45;
+    X.save(); X.translate(bx+bw/2, by+28);
+    const dT={kind,angle:-Math.PI/4,level:1,flashTimer:0,showRange:false};
+    X.scale(0.5,0.5);
+    switch(kind){
+      case 'gun':    drawGunTower(X,0,0,20,dT,now,1); break;
+      case 'flame':  drawFlameTower(X,0,0,20,dT,now,1); break;
+      case 'bomb':   drawBombTower(X,0,0,20,dT,now,1); break;
+      case 'freeze': drawFreezeTower(X,0,0,20,dT,now,1); break;
+      case 'trigun': drawTrigunTower(X,0,0,20,dT,now,1); break;
+    }
+    X.restore();
+    X.fillStyle=sel?'#8cf':'#aac'; X.font='bold 9px Segoe UI'; X.textAlign='center';
+    X.fillText(td.name, bx+bw/2, by+54);
+    X.fillStyle=canAfford?'#fd0':'#a66'; X.font='bold 9px monospace';
+    X.fillText('⬡'+td.cost, bx+bw/2, by+66);
+    X.fillStyle='#446'; X.font='8px monospace';
+    X.fillText(td.key, bx+bw/2, by+76);
+    X.globalAlpha=1;
+  }
+
+  let y=by+bh+10;
+
+  // upgrade / sell row when a tower is selected
+  if(G.selectedTower){
+    const t=G.towers[G.selectedTower];
+    if(t){
+      const td2=TDEFS[t.kind];
+      const upgCost=30*t.level;
+      const canUpg=G.gold>=upgCost&&t.level<3;
+      const sellVal=Math.floor(td2.cost*t.level*0.6);
+      const hw=Math.floor(pw/2)-4;
+      roundRect(X,px,y,hw,34,6);
+      X.fillStyle=canUpg?'rgba(20,60,20,0.8)':'rgba(40,20,20,0.5)'; X.fill();
+      X.strokeStyle=canUpg?'#4a4':'#644'; X.lineWidth=1.5; X.stroke();
+      X.fillStyle=canUpg?'#6f6':'#866'; X.font='bold 10px monospace'; X.textAlign='center';
+      X.fillText(t.level<3?`▲ UPG ⬡${upgCost}`:'MAX LV', px+hw/2, y+22);
+      roundRect(X,px+hw+8,y,hw,34,6);
+      X.fillStyle='rgba(60,15,15,0.8)'; X.fill();
+      X.strokeStyle='#844'; X.lineWidth=1; X.stroke();
+      X.fillStyle='#f88'; X.font='bold 10px monospace'; X.textAlign='center';
+      X.fillText(`SELL ⬡${sellVal}`, px+hw+8+hw/2, y+22);
+      X.fillStyle='#cde'; X.font='10px monospace'; X.textAlign='left';
+      X.fillText(`${td2.name} Lv${t.level}`, px, y+46);
+      y+=52;
+    }
+  }
+
+  // start / pause button pinned to bottom
+  const btnH=46, btnY=LH-btnH-6;
+  roundRect(X,px,btnY,pw,btnH,8);
+  if(G.state==='prep'){
+    const bg=X.createLinearGradient(px,btnY,px,btnY+btnH);
+    bg.addColorStop(0,'#1a5a1a'); bg.addColorStop(1,'#0c3010');
+    X.fillStyle=bg; X.fill(); X.strokeStyle='#4f4'; X.lineWidth=2; X.stroke();
+    X.fillStyle='#8f8'; X.font='bold 16px monospace'; X.textAlign='center';
+    X.fillText('▶ START WAVE', px+pw/2, btnY+30);
+  } else if(G.state==='wave'){
+    const bg=X.createLinearGradient(px,btnY,px,btnY+btnH);
+    bg.addColorStop(0,'#3a1a00'); bg.addColorStop(1,'#1a0c00');
+    X.fillStyle=bg; X.fill(); X.strokeStyle='#f80'; X.lineWidth=1; X.stroke();
+    X.fillStyle='#fa6'; X.font='bold 14px monospace'; X.textAlign='center';
+    X.fillText(G.paused?'▶ RESUME':'⏸ PAUSE', px+pw/2, btnY+30);
   }
 }
 
 function drawPanel(now){
+  if(isPortrait){ drawPanelPortrait(now); return; }
   const px=PX, pw=PW;
 
   // panel background
@@ -1061,44 +1159,58 @@ function drawSplash(now){
     X.fill(); X.restore();
   }
 
-  // title glow layers
+  // title glow layers — smaller font in portrait to fit 480px width
+  const titleFont=isPortrait?'bold 40px monospace':'bold 72px monospace';
+  const titleY=isPortrait?110:160;
   X.textAlign='center';
   for(const [spread,alpha] of [[18,0.08],[10,0.2],[5,0.5]]){
     X.shadowColor='#4080ff'; X.shadowBlur=spread;
     X.globalAlpha=alpha;
-    X.fillStyle='#4080ff'; X.font='bold 72px monospace';
-    X.fillText('TOWER DEFENSE', LW/2, 160);
+    X.fillStyle='#4080ff'; X.font=titleFont;
+    X.fillText('TOWER DEFENSE', LW/2, titleY);
   }
   X.shadowBlur=0; X.globalAlpha=1;
-  X.fillStyle='#fff'; X.font='bold 72px monospace';
-  X.fillText('TOWER DEFENSE', LW/2, 160);
+  X.fillStyle='#fff'; X.font=titleFont;
+  X.fillText('TOWER DEFENSE', LW/2, titleY);
 
   // subtitle
-  X.fillStyle='rgba(140,180,255,0.8)'; X.font='18px Segoe UI';
-  X.fillText('HTML5 · Instant Load · Animated 3D Graphics', LW/2, 196);
+  X.fillStyle='rgba(140,180,255,0.8)'; X.font=isPortrait?'13px Segoe UI':'18px Segoe UI';
+  X.fillText('HTML5 · Instant Load · Animated 3D Graphics', LW/2, titleY+30);
 
-  // feature pills
+  // feature pills (2×2 grid in portrait, 1 row in landscape)
   const pills=['5 Tower Types','10 Waves','2 Maps','Web Audio'];
-  pills.forEach((p,i)=>{
-    const px2=LW/2-pills.length/2*120+i*120+60, py2=230;
-    roundRect(X,px2-52,py2-14,104,26,13);
-    X.fillStyle='rgba(20,40,80,0.7)'; X.fill();
-    X.strokeStyle='rgba(60,120,200,0.5)'; X.lineWidth=1; X.stroke();
-    X.fillStyle='#8af'; X.font='12px Segoe UI'; X.textAlign='center';
-    X.fillText(p,px2,py2+4);
-  });
+  if(isPortrait){
+    pills.forEach((p,i)=>{
+      const col=i%2, row=Math.floor(i/2);
+      const px2=LW/2+(col-0.5)*120, py2=titleY+60+row*34;
+      roundRect(X,px2-52,py2-14,104,26,13);
+      X.fillStyle='rgba(20,40,80,0.7)'; X.fill();
+      X.strokeStyle='rgba(60,120,200,0.5)'; X.lineWidth=1; X.stroke();
+      X.fillStyle='#8af'; X.font='12px Segoe UI'; X.textAlign='center';
+      X.fillText(p,px2,py2+4);
+    });
+  } else {
+    pills.forEach((p,i)=>{
+      const px2=LW/2-pills.length/2*120+i*120+60, py2=230;
+      roundRect(X,px2-52,py2-14,104,26,13);
+      X.fillStyle='rgba(20,40,80,0.7)'; X.fill();
+      X.strokeStyle='rgba(60,120,200,0.5)'; X.lineWidth=1; X.stroke();
+      X.fillStyle='#8af'; X.font='12px Segoe UI'; X.textAlign='center';
+      X.fillText(p,px2,py2+4);
+    });
+  }
 
-  // tower showcase
-  const showcaseY=310;
+  // tower showcase — tighter spacing in portrait
+  const showcaseY=isPortrait?titleY+140:310;
+  const tspacing=isPortrait?76:90;
   X.fillStyle='rgba(140,180,255,0.5)'; X.font='13px Segoe UI'; X.textAlign='center';
   X.fillText('TOWERS', LW/2, showcaseY-10);
   TORDER.forEach((kind,i)=>{
-    const sx=LW/2 - TORDER.length/2*90 + i*90 + 45;
+    const sx=LW/2 - TORDER.length/2*tspacing + i*tspacing + tspacing/2;
     const sy=showcaseY+40;
     const dt2=TDEFS[kind];
     X.save(); X.translate(sx,sy);
     const dT={kind,angle:now*0.8+i,level:1,flashTimer:0,showRange:false};
-    drawGunTower===drawGunTower; // ref check
     switch(kind){
       case 'gun':    drawGunTower(X,0,0,22,dT,now,1); break;
       case 'flame':  drawFlameTower(X,0,0,22,dT,now,1); break;
@@ -1116,13 +1228,17 @@ function drawSplash(now){
   // start prompt (blinking)
   const blink=0.55+0.45*Math.sin(now*3.5);
   X.globalAlpha=blink;
-  X.fillStyle='#8cf'; X.font='bold 22px monospace'; X.textAlign='center';
-  X.fillText('PRESS  SPACE  OR  CLICK  TO  START', LW/2, LH-60);
+  X.fillStyle='#8cf'; X.font=isPortrait?'bold 18px monospace':'bold 22px monospace'; X.textAlign='center';
+  X.fillText('TAP  TO  START', LW/2, LH-50);
   X.globalAlpha=1;
 
   // controls hint
-  X.fillStyle='rgba(80,100,140,0.7)'; X.font='12px Segoe UI'; X.textAlign='center';
-  X.fillText('Keys: 1-5 select tower  ·  Click grid to place  ·  P pause  ·  Space start wave', LW/2, LH-34);
+  X.fillStyle='rgba(80,100,140,0.7)'; X.font='11px Segoe UI'; X.textAlign='center';
+  if(isPortrait){
+    X.fillText('Tap grid to place tower  ·  P pause', LW/2, LH-28);
+  } else {
+    X.fillText('Keys: 1-5 select tower  ·  Click grid to place  ·  P pause  ·  Space start wave', LW/2, LH-34);
+  }
 }
 
 // ── Map select screen ────────────────────────────────────────────────
@@ -1138,7 +1254,9 @@ function drawMapSelect(now){
   X.fillText('Click a map or press 1/2', LW/2, 110);
 
   MAPS.forEach((m,i)=>{
-    const bx=LW/2+(i-1)*320, by=220, bw=280, bh=320;
+    const bx=isPortrait?LW/2:LW/2+(i-1)*320;
+    const by=isPortrait?130+i*230:220;
+    const bw=isPortrait?420:280, bh=isPortrait?200:320;
     const hover=mapSelectHover===i;
     roundRect(X,bx-bw/2,by,bw,bh,12);
     X.fillStyle=hover?'rgba(20,50,90,0.9)':'rgba(12,25,50,0.8)'; X.fill();
@@ -1211,61 +1329,90 @@ function toLogical(clientX, clientY){
   return [(clientX-offX)/scale, (clientY-offY)/scale];
 }
 
-function handleClick(lx,ly){
-  if(appState.screen==='splash'){
-    appState.screen='mapSelect'; return;
-  }
-  if(appState.screen==='mapSelect'){
-    MAPS.forEach((_,i)=>{
-      const bx=LW/2+(i-1)*320, by=220, bw=280, bh=320;
-      if(lx>=bx-bw/2&&lx<=bx+bw/2&&ly>=by&&ly<=by+bh){
-        newGame(i); appState.screen='game';
-      }
-    });
-    return;
-  }
-  // game screen
-  if(!G) return;
-  if(G.state==='gameOver'||G.state==='victory'){
-    appState.screen='splash'; G=null; return;
-  }
-
-  // start wave button
+function panelClickLandscape(lx,ly){
   const btnY=LH-70, btnH=50;
   if(lx>=PX+8&&lx<=PX+PW-8&&ly>=btnY&&ly<=btnY+btnH){
     if(G.state==='prep') startWave();
     else if(G.state==='wave') G.paused=!G.paused;
-    return;
+    return true;
   }
-
-  // tower buttons
-  let ty2=62+16;
+  let ty=62+16;
   for(const kind of TORDER){
-    const bh=56;
-    if(lx>=PX+6&&lx<=PX+PW-6&&ly>=ty2&&ly<=ty2+bh){
-      G.selectedType=kind; G.selectedTower=null; return;
+    if(lx>=PX+6&&lx<=PX+PW-6&&ly>=ty&&ly<=ty+56){
+      G.selectedType=kind; G.selectedTower=null; return true;
     }
-    ty2+=bh+4;
+    ty+=60;
   }
-  ty2+=4+12;
-
-  // upgrade/sell buttons (if tower selected)
+  ty+=16;
   if(G.selectedTower){
     const t=G.towers[G.selectedTower];
     if(t){
       const upgCost=30*t.level;
-      if(lx>=PX+8&&lx<=PX+PW-8&&ly>=ty2&&ly<=ty2+34){
+      if(lx>=PX+8&&lx<=PX+PW-8&&ly>=ty&&ly<=ty+34){
         if(t.level<3&&G.gold>=upgCost){ G.gold-=upgCost; t.level++; SFX.place(); }
-        return;
+        return true;
       }
-      ty2+=44;
-      if(lx>=PX+8&&lx<=PX+PW-8&&ly>=ty2&&ly<=ty2+28){
+      if(lx>=PX+8&&lx<=PX+PW-8&&ly>=ty+44&&ly<=ty+72){
         const sellVal=Math.floor(TDEFS[t.kind].cost*t.level*0.6);
         G.gold+=sellVal; delete G.towers[G.selectedTower]; G.selectedTower=null;
-        return;
+        return true;
       }
     }
   }
+  return false;
+}
+
+function panelClickPortrait(lx,ly){
+  const px=8, pw=LW-16;
+  const bw=Math.floor(pw/TORDER.length), bh=84, by=PY+6;
+  for(let i=0;i<TORDER.length;i++){
+    const bx=px+i*bw;
+    if(lx>=bx+2&&lx<=bx+bw-2&&ly>=by&&ly<=by+bh){
+      G.selectedType=TORDER[i]; G.selectedTower=null; return true;
+    }
+  }
+  let y=by+bh+10;
+  if(G.selectedTower){
+    const t=G.towers[G.selectedTower];
+    if(t){
+      const hw=Math.floor(pw/2)-4;
+      const upgCost=30*t.level;
+      if(lx>=px&&lx<=px+hw&&ly>=y&&ly<=y+34){
+        if(t.level<3&&G.gold>=upgCost){ G.gold-=upgCost; t.level++; SFX.place(); }
+        return true;
+      }
+      if(lx>=px+hw+8&&lx<=px+hw+8+hw&&ly>=y&&ly<=y+34){
+        const sellVal=Math.floor(TDEFS[t.kind].cost*t.level*0.6);
+        G.gold+=sellVal; delete G.towers[G.selectedTower]; G.selectedTower=null; return true;
+      }
+      y+=52;
+    }
+  }
+  const btnH=46, btnY=LH-btnH-6;
+  if(lx>=px&&lx<=px+pw&&ly>=btnY&&ly<=btnY+btnH){
+    if(G.state==='prep') startWave();
+    else if(G.state==='wave') G.paused=!G.paused;
+    return true;
+  }
+  return false;
+}
+
+function handleClick(lx,ly){
+  if(appState.screen==='splash'){ appState.screen='mapSelect'; return; }
+  if(appState.screen==='mapSelect'){
+    MAPS.forEach((_,i)=>{
+      const bx=isPortrait?LW/2:LW/2+(i-1)*320;
+      const by=isPortrait?130+i*230:220;
+      const bw=isPortrait?420:280, bh=isPortrait?200:320;
+      if(lx>=bx-bw/2&&lx<=bx+bw/2&&ly>=by&&ly<=by+bh){ newGame(i); appState.screen='game'; }
+    });
+    return;
+  }
+  if(!G) return;
+  if(G.state==='gameOver'||G.state==='victory'){ appState.screen='splash'; G=null; return; }
+
+  if(isPortrait){ if(panelClickPortrait(lx,ly)) return; }
+  else           { if(panelClickLandscape(lx,ly)) return; }
 
   // grid click
   if(lx>=GX&&lx<GX+COLS*CS&&ly>=GY&&ly<GY+ROWS*CS){
@@ -1273,18 +1420,14 @@ function handleClick(lx,ly){
     const key=gr*COLS+gc;
     if(G.pathSet.has(key)) return;
     if(G.towers[key]){
-      G.selectedTower = G.selectedTower===String(key)?null:String(key);
-      return;
+      G.selectedTower=G.selectedTower===String(key)?null:String(key); return;
     }
-    // place tower
     if((G.state==='prep'||G.state==='wave')&&!G.paused){
       const td=TDEFS[G.selectedType];
       if(G.gold>=td.cost){
         G.gold-=td.cost;
         G.towers[key]=new Tower(gc,gr,G.selectedType);
-        G.selectedTower=null;
-        SFX.place();
-        // recheck path not blocked (simple: we just allow all non-path cells)
+        G.selectedTower=null; SFX.place();
       }
     }
   }
@@ -1294,7 +1437,9 @@ function handleMouseMove(lx,ly){
   if(appState.screen==='mapSelect'){
     mapSelectHover=-1;
     MAPS.forEach((_,i)=>{
-      const bx=LW/2+(i-1)*320, by=220, bw=280, bh=320;
+      const bx=isPortrait?LW/2:LW/2+(i-1)*320;
+      const by=isPortrait?130+i*230:220;
+      const bw=isPortrait?420:280, bh=isPortrait?200:320;
       if(lx>=bx-bw/2&&lx<=bx+bw/2&&ly>=by&&ly<=by+bh) mapSelectHover=i;
     });
     return;
