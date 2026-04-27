@@ -1,10 +1,10 @@
 #!/bin/bash
 cd "$(dirname "$0")"
 
-while true; do
+show_status() {
   echo ""
   echo "========================================"
-  echo "  Git Status"
+  echo "  Git Status — $(basename "$PWD")"
   echo "========================================"
   git status
   echo ""
@@ -16,23 +16,36 @@ while true; do
   echo "========================================"
   echo "  Actions"
   echo "========================================"
-  echo "  1) git add <file>    — stage a file"
-  echo "  2) git add .         — stage all changes"
-  echo "  3) git commit        — commit staged changes"
-  echo "  4) git diff          — show unstaged changes"
-  echo "  5) git diff --staged — show staged changes"
-  echo "  6) git restore <file>— discard changes in file"
-  echo "  7) git push          — push to remote"
-  echo "  8) git pull          — pull from remote"
-  echo "  9) custom command    — type any git command"
-  echo "  s) refresh status    — re-show status & log"
+  echo "  1) stage a file"
+  echo "  2) stage all changes"
+  echo "  3) commit staged changes"
+  echo "  4) show unstaged diff"
+  echo "  5) show staged diff"
+  echo "  6) restore (discard) a file"
+  echo "  7) push  (main + master)"
+  echo "  8) pull"
+  echo "  9) custom git command"
+  echo "  s) refresh"
   echo "  0) exit"
   echo ""
-  read -p "Choose [0-9/s]: " choice
+}
+
+do_push() {
+  echo "→ Pushing to origin/main..."
+  git push origin main
+  echo "→ Syncing origin/master..."
+  git push --force origin main:master
+  echo "✓ Both main and master updated"
+}
+
+show_status
+
+while true; do
+  read -rp "Choose [0-9/s]: " choice
 
   case "$choice" in
     1)
-      read -p "File to stage (e.g. app.py): " f
+      read -rp "File to stage: " f
       git add "$f" && echo "✓ Staged: $f"
       ;;
     2)
@@ -40,7 +53,7 @@ while true; do
       echo "✓ All changes staged"
       ;;
     3)
-      read -p "Commit message: " msg
+      read -rp "Commit message: " msg
       git commit -m "$msg"
       ;;
     4)
@@ -50,21 +63,22 @@ while true; do
       git diff --staged
       ;;
     6)
-      read -p "File to restore: " f
-      read -p "Are you sure you want to discard changes in '$f'? [y/N]: " confirm
+      read -rp "File to restore: " f
+      read -rp "Discard changes in '$f'? [y/N]: " confirm
       [[ "$confirm" =~ ^[Yy]$ ]] && git restore "$f" && echo "✓ Restored: $f"
       ;;
     7)
-      git push
+      do_push
       ;;
     8)
       git pull
       ;;
     9)
-      read -p "git " cmd
+      read -rp "git " cmd
       git $cmd
       ;;
     s|S)
+      show_status
       continue
       ;;
     0)
@@ -77,5 +91,6 @@ while true; do
   esac
 
   echo ""
-  read -p "Press Enter to continue..."
+  read -rp "Press Enter to continue..."
+  show_status
 done
