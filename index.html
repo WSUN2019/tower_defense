@@ -629,11 +629,13 @@ class Monster {
 
     // type based on wave
     const r=Math.random();
-    if(wave>8 && r<0.08)      { this.type='demo';   this.speed=38; this.maxHp=600+wave*40; this.reward=25; this.radius=18; }
-    else if(wave>5 && r<0.15) { this.type='boss';   this.speed=40; this.maxHp=300+wave*25; this.reward=15; this.radius=16; }
-    else if(r<0.25)           { this.type='tank';   this.speed=45; this.maxHp=80+wave*8;   this.reward=8;  this.radius=13; }
-    else if(r<0.45)           { this.type='fast';   this.speed=110;this.maxHp=20+wave*3;   this.reward=4;  this.radius=9;  }
-    else                      { this.type='normal'; this.speed=65; this.maxHp=30+wave*5;   this.reward=5;  this.radius=11; }
+    const ms=monsterScale(wave);
+    const rew=n=>Math.round(n*(1+wave*0.04));
+    if(wave>5 && r<0.07)      { this.type='demo';   this.speed=38+wave*0.3;  this.maxHp=Math.round(600*ms);  this.reward=rew(25); this.radius=18; }
+    else if(wave>2 && r<0.13) { this.type='boss';   this.speed=40+wave*0.3;  this.maxHp=Math.round(300*ms);  this.reward=rew(15); this.radius=16; }
+    else if(r<0.25)           { this.type='tank';   this.speed=45+wave*0.2;  this.maxHp=Math.round(80*ms);   this.reward=rew(8);  this.radius=13; }
+    else if(r<0.45)           { this.type='fast';   this.speed=Math.min(160,110+wave*0.8); this.maxHp=Math.round(20*ms); this.reward=rew(4); this.radius=9; }
+    else                      { this.type='normal'; this.speed=Math.min(100,65+wave*0.4);  this.maxHp=Math.round(30*ms); this.reward=rew(5); this.radius=11; }
 
     this.hp = this.maxHp;
     this.baseColor = MCOLORS[this.type];
@@ -714,8 +716,10 @@ class Tower {
 }
 
 // ── Wave definitions ─────────────────────────────────────────────────
-function waveCount(w){ return 8+w*3; }
-function spawnInterval(w){ return Math.max(0.4, 1.2-w*0.06); }
+function waveCount(w){ return Math.min(8+w*3, 55); }
+function spawnInterval(w){ return Math.max(0.22, 1.2-w*0.055); }
+// exponential HP multiplier that kicks in after wave 10
+function monsterScale(w){ return (1+w*0.18) * Math.pow(1.06, Math.max(0,w-8)); }
 
 // ── Game state ────────────────────────────────────────────────────────
 let G = null;  // main game object
@@ -748,7 +752,7 @@ function newGame(mapIdx){
 
 // ── Main game logic update ────────────────────────────────────────────
 function updateGame(dt, now){
-  if(!G||G.state==='splash'||G.state==='mapSelect'||G.state==='gameOver'||G.state==='victory') return;
+  if(!G||G.state==='splash'||G.state==='mapSelect'||G.state==='gameOver') return;
   if(G.paused) return;
   G.time+=dt;
 
@@ -759,7 +763,7 @@ function updateGame(dt, now){
   // monsters
   for(const m of G.monsters){
     m.advance(dt);
-    if(m.reached){ G.lives--; m.reached=false; m.dead=true; SFX.lifeLost(); if(G.lives<=0){endGame(false);return;} }
+    if(m.reached){ G.lives--; m.reached=false; m.dead=true; SFX.lifeLost(); if(G.lives<=0){endGame();return;} }
     if(m.dead && m.hp<=0 && !m._rewarded){ m._rewarded=true; G.gold+=m.reward; G.score+=m.reward*10; SFX.monsterDie();
       spawnParticles(m.x,m.y,8,{spd:50,life:0.5,r:4,color:m.baseColor,gravity:20}); }
   }
@@ -779,9 +783,8 @@ function updateGame(dt, now){
     // wave done?
     if(G.spawnCount>=G.waveCount && G.monsters.length===0){
       G.wave++;
-      if(G.wave>10){ endGame(true); return; }
       G.state='prep';
-      G.gold+=20+G.wave*5;
+      G.gold+=Math.min(60, 20+G.wave*3);
       G.score+=G.wave*50;
     }
   }
@@ -800,9 +803,9 @@ function startWave(){
   SFX.waveStart();
 }
 
-function endGame(won){
-  G.state = won?'victory':'gameOver';
-  if(won) SFX.victory(); else SFX.gameOver();
+function endGame(){
+  G.state='gameOver';
+  SFX.gameOver();
 }
 
 // ── HUD / UI rendering ────────────────────────────────────────────────
@@ -828,7 +831,7 @@ function drawHUD(now){
   // wave / score
   X.textAlign='center';
   X.fillStyle='#8af'; X.font='bold 16px monospace';
-  X.fillText(`WAVE ${G.wave+1}/10`, LW/2, 22);
+  X.fillText(`WAVE ${G.wave+1}`, LW/2, 22);
   X.fillStyle='#aaa'; X.font='13px monospace';
   X.fillText(`SCORE: ${G.score}`, LW/2, 40);
 
@@ -1107,18 +1110,19 @@ function drawGame(now){
     X.fillText('Press P or tap Resume', GX+COLS*CS/2, GY+ROWS*CS/2+20);
   }
 
-  if(G.state==='gameOver'||G.state==='victory'){
-    const won=G.state==='victory';
+  if(G.state==='gameOver'){
     X.fillStyle='rgba(0,5,15,0.85)';
     X.fillRect(GX,GY,COLS*CS,ROWS*CS);
     X.font='bold 52px monospace'; X.textAlign='center';
     const gx2=GX+COLS*CS/2, gy2=GY+ROWS*CS/2;
-    X.fillStyle=won?'#ffe066':'#f44';
-    X.fillText(won?'VICTORY!':'GAME OVER', gx2, gy2-30);
-    X.fillStyle='#aac'; X.font='bold 20px monospace';
-    X.fillText(`Score: ${G.score}`, gx2, gy2+10);
-    X.fillStyle='#6a8'; X.font='16px monospace';
-    X.fillText('Click to play again', gx2, gy2+45);
+    X.fillStyle='#f44';
+    X.fillText('GAME OVER', gx2, gy2-40);
+    X.fillStyle='#aac'; X.font='bold 18px monospace';
+    X.fillText(`Reached Wave ${G.wave}`, gx2, gy2-4);
+    X.fillStyle='#888'; X.font='15px monospace';
+    X.fillText(`Score: ${G.score}`, gx2, gy2+24);
+    X.fillStyle='#6a8'; X.font='14px monospace';
+    X.fillText('Tap to play again', gx2, gy2+54);
   }
 }
 
@@ -1409,7 +1413,7 @@ function handleClick(lx,ly){
     return;
   }
   if(!G) return;
-  if(G.state==='gameOver'||G.state==='victory'){ appState.screen='splash'; G=null; return; }
+  if(G.state==='gameOver'){ appState.screen='splash'; G=null; return; }
 
   if(isPortrait){ if(panelClickPortrait(lx,ly)) return; }
   else           { if(panelClickLandscape(lx,ly)) return; }
