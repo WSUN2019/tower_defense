@@ -132,7 +132,14 @@ function bfs(blocked, entry, exit) {
 // ── Utility drawing helpers ──────────────────────────────────────────
 function hsl(h,s,l,a=1){return `hsla(${h},${s}%,${l}%,${a})`}
 function roundRect(ctx,x,y,w,h,r){
-  ctx.beginPath(); ctx.roundRect(x,y,w,h,r); ctx.closePath();
+  r = Math.min(r, w/2, h/2);
+  ctx.beginPath();
+  ctx.moveTo(x+r, y);
+  ctx.lineTo(x+w-r, y);  ctx.quadraticCurveTo(x+w, y,   x+w, y+r);
+  ctx.lineTo(x+w, y+h-r); ctx.quadraticCurveTo(x+w, y+h, x+w-r, y+h);
+  ctx.lineTo(x+r, y+h);   ctx.quadraticCurveTo(x,   y+h, x,   y+h-r);
+  ctx.lineTo(x,   y+r);   ctx.quadraticCurveTo(x,   y,   x+r, y);
+  ctx.closePath();
 }
 function cellCenter(col,row){return [GX+col*CS+CS/2, GY+row*CS+CS/2];}
 function worldToGrid(wx,wy){
@@ -929,6 +936,7 @@ function drawPanel(now){
 
 // ── Main game renderer ────────────────────────────────────────────────
 function drawGame(now){
+  X.globalAlpha=1; X.shadowBlur=0; X.setLineDash([]);
   // grid background
   X.fillStyle='#0a0f1a';
   X.fillRect(GX-2,GY-2,COLS*CS+4,ROWS*CS+4);
@@ -1168,10 +1176,13 @@ function frame(ts){
   lastTime=ts;
   const now=ts/1000;
 
+  // Clear entire canvas in raw pixel coords first — prevents stale frames bleeding through
+  X.setTransform(1,0,0,1,0,0);
+  X.clearRect(0,0,C.width,C.height);
+
   X.save();
   X.translate(offX,offY);
   X.scale(scale,scale);
-  X.clearRect(0,0,LW,LH);
 
   if(appState.screen==='splash'){
     drawSplash(now);
