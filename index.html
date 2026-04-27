@@ -965,6 +965,12 @@ function drawGame(now){
     }
   }
 
+  // clip all in-grid drawing to the grid bounds
+  X.save();
+  X.beginPath();
+  X.rect(GX, GY, COLS*CS, ROWS*CS);
+  X.clip();
+
   // draw bullets (below towers)
   drawBullets();
 
@@ -981,7 +987,9 @@ function drawGame(now){
   const sortedM=[...G.monsters].sort((a,b)=>a.y-b.y);
   for(const m of sortedM) if(!m.dead) drawMonster(m,now);
 
-  // HUD
+  X.restore(); // end grid clip
+
+  // HUD and panel draw on top without clip
   drawHUD(now);
   drawPanel(now);
 
