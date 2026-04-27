@@ -75,6 +75,7 @@ const MAPS = [
 
 // ── Audio (Web Audio API procedural) ────────────────────────────────
 let AC = null;
+let muteAll = false;
 function getAC() {
   if (!AC) { try { AC = new (window.AudioContext||window.webkitAudioContext)(); } catch(e){} }
   return AC;
@@ -85,7 +86,7 @@ const BGM = (() => {
   const BPM=118, b=60/BPM;
 
   function note(f, t, dur, v, type='sine', det=0){
-    if(!playing||!ac) return;
+    if(!playing||!ac||muteAll) return;
     const o=ac.createOscillator(), g=ac.createGain();
     o.type=type; o.frequency.value=f; o.detune.value=det;
     g.gain.setValueAtTime(0,t);
@@ -153,6 +154,24 @@ const BGM = (() => {
   };
 })();
 
+function toggleMute(){
+  muteAll=!muteAll;
+  if(muteAll) BGM.stop(); else BGM.start();
+}
+function muteBtnBounds(){
+  return {x:LW-52, y:4, w:46, h:42};
+}
+function drawMuteBtn(){
+  const {x,y,w,h}=muteBtnBounds();
+  roundRect(X,x,y,w,h,8);
+  X.fillStyle=muteAll?'rgba(80,20,20,0.85)':'rgba(10,30,60,0.85)'; X.fill();
+  X.strokeStyle=muteAll?'#f44':'#4af'; X.lineWidth=1; X.stroke();
+  X.fillStyle=muteAll?'#f88':'#8cf'; X.font='bold 11px monospace'; X.textAlign='center';
+  X.fillText(muteAll?'MUTE':'SOUND', x+w/2, y+h/2-3);
+  X.fillStyle=muteAll?'#a44':'#46a'; X.font='9px monospace';
+  X.fillText(muteAll?'OFF':'ON', x+w/2, y+h/2+9);
+}
+
 ['touchstart','click','keydown'].forEach(ev =>
   document.addEventListener(ev, ()=>{
     const a=getAC(); if(a&&a.state==='suspended') a.resume();
@@ -161,6 +180,7 @@ const BGM = (() => {
 );
 
 function playTone(freq, dur, vol=0.18, type='square', detune=0) {
+  if(muteAll) return;
   const a = getAC(); if(!a) return;
   const o = a.createOscillator(), g = a.createGain();
   o.type=type; o.frequency.value=freq; o.detune.value=detune;
@@ -170,6 +190,7 @@ function playTone(freq, dur, vol=0.18, type='square', detune=0) {
   o.start(); o.stop(a.currentTime+dur);
 }
 function playNoise(dur, vol=0.1, filterFreq=2000) {
+  if(muteAll) return;
   const a = getAC(); if(!a) return;
   const buf = a.createBuffer(1, a.sampleRate*dur, a.sampleRate);
   const d = buf.getChannelData(0);
@@ -617,6 +638,46 @@ function drawMonster(m, now){
   const hpPct = m.hp/m.maxHp;
   const bodyY = y + bob;
 
+  if(m.type==='blob'){
+    const wobble=Math.sin(now*5+m.id*2.1)*0.12;
+    // outer glow
+    const gG=X.createRadialGradient(x,bodyY,0,x,bodyY,r*1.7);
+    gG.addColorStop(0,'rgba(200,100,255,0.25)'); gG.addColorStop(1,'transparent');
+    X.fillStyle=gG; X.beginPath(); X.arc(x,bodyY,r*1.7,0,Math.PI*2); X.fill();
+    // wobbly circular body
+    X.save(); X.translate(x,bodyY); X.scale(1+wobble,1-wobble);
+    const bG=X.createRadialGradient(-r*0.3,-r*0.3,0,0,0,r);
+    bG.addColorStop(0,'#e0a0ff'); bG.addColorStop(0.55,bc); bG.addColorStop(1,shadeColor(bc,-40));
+    X.fillStyle=bG; X.beginPath(); X.arc(0,0,r,0,Math.PI*2); X.fill();
+    X.strokeStyle='rgba(220,140,255,0.55)'; X.lineWidth=1.5; X.stroke();
+    for(let i=0;i<3;i++){
+      const ba=now*1.6+m.id+i*Math.PI*2/3;
+      X.globalAlpha=0.45; X.fillStyle='rgba(235,185,255,0.75)';
+      X.beginPath(); X.arc(Math.cos(ba)*r*0.44,Math.sin(ba)*r*0.44,r*0.22,0,Math.PI*2); X.fill();
+    }
+    X.globalAlpha=1; X.restore();
+    // eyes
+    const bEyeC=m.slow>0?'#04f':'#ff0', bBlink=Math.sin(now*0.4+m.id)*10>9.5;
+    if(!bBlink){
+      X.fillStyle=bEyeC;
+      X.beginPath(); X.arc(x-r*0.3,bodyY-r*0.2,r*0.18,0,Math.PI*2); X.fill();
+      X.beginPath(); X.arc(x+r*0.3,bodyY-r*0.2,r*0.18,0,Math.PI*2); X.fill();
+      X.fillStyle='#000';
+      X.beginPath(); X.arc(x-r*0.3+0.5,bodyY-r*0.2,r*0.08,0,Math.PI*2); X.fill();
+      X.beginPath(); X.arc(x+r*0.3+0.5,bodyY-r*0.2,r*0.08,0,Math.PI*2); X.fill();
+    }
+    if(m.gen>0){
+      X.fillStyle='rgba(255,255,255,0.9)'; X.font=`bold ${Math.max(7,Math.floor(r*0.7))}px monospace`; X.textAlign='center';
+      X.fillText('\xd7'+Math.pow(2,m.gen),x,bodyY+r*0.4);
+    }
+    if(m.slow>0){ X.globalAlpha=m.slow/m.slowMax*0.4; X.fillStyle='#8ef'; X.beginPath(); X.arc(x,bodyY,r,0,Math.PI*2); X.fill(); X.globalAlpha=1; }
+    const blBw=r*2.2,blBh=4,blBx=x-blBw/2,blBy=bodyY-r-9;
+    X.fillStyle='#111'; X.fillRect(blBx,blBy,blBw,blBh);
+    X.fillStyle=hpPct>0.6?'#4f4':hpPct>0.3?'#fa0':'#f44'; X.fillRect(blBx,blBy,blBw*hpPct,blBh);
+    X.strokeStyle='#000'; X.lineWidth=0.5; X.strokeRect(blBx,blBy,blBw,blBh);
+    X.restore(); return;
+  }
+
   // back/side faces (3D depth)
   X.fillStyle=shadeColor(bc,-40);
   roundRect(X, x-r+3, bodyY-r+4, r*2, r*2+2, r*0.4);
@@ -690,7 +751,7 @@ function shadeColor(col, pct){
 function lightenColor(col,pct){return shadeColor(col,pct);}
 
 // ── Monster colors per type ───────────────────────────────────────────
-const MCOLORS={normal:'#4a8a30',fast:'#e8c020',tank:'#506088',boss:'#a02020',demo:'#904010'};
+const MCOLORS={normal:'#4a8a30',fast:'#e8c020',tank:'#506088',boss:'#a02020',demo:'#904010',blob:'#8a3ab0'};
 
 // ── Monster class ─────────────────────────────────────────────────────
 let monsterIdCounter=0;
@@ -710,14 +771,16 @@ class Monster {
     const rew=n=>Math.round(n*(1+wave*0.04));
     if(wave>5 && r<0.07)      { this.type='demo';   this.speed=38+wave*0.3;  this.maxHp=Math.round(600*ms);  this.reward=rew(25); this.radius=18; }
     else if(wave>2 && r<0.13) { this.type='boss';   this.speed=40+wave*0.3;  this.maxHp=Math.round(300*ms);  this.reward=rew(15); this.radius=16; }
-    else if(r<0.25)           { this.type='tank';   this.speed=45+wave*0.2;  this.maxHp=Math.round(80*ms);   this.reward=rew(8);  this.radius=13; }
-    else if(r<0.45)           { this.type='fast';   this.speed=Math.min(160,110+wave*0.8); this.maxHp=Math.round(20*ms); this.reward=rew(4); this.radius=9; }
+    else if(r<0.22)           { this.type='tank';   this.speed=45+wave*0.2;  this.maxHp=Math.round(80*ms);   this.reward=rew(8);  this.radius=13; }
+    else if(r<0.42)           { this.type='fast';   this.speed=Math.min(160,110+wave*0.8); this.maxHp=Math.round(20*ms); this.reward=rew(4); this.radius=9; }
+    else if(r<0.56)           { this.type='blob';   this.speed=Math.min(55,28+wave*0.25);  this.maxHp=Math.round(120*ms); this.reward=rew(12); this.radius=16; }
     else                      { this.type='normal'; this.speed=Math.min(100,65+wave*0.4);  this.maxHp=Math.round(30*ms); this.reward=rew(5); this.radius=11; }
 
     this.hp = this.maxHp;
-    this.baseColor = MCOLORS[this.type];
+    this.baseColor = MCOLORS[this.type]||'#4a8a30';
     this.slow = 0; this.slowMax=1.5; this.dot=0; this.dotTimer=0;
     this.dead=false; this.reached=false;
+    this.gen=0; this.split=false; // blob split tracking
   }
   advance(dt){
     if(this.dead||this.reached) return;
@@ -738,6 +801,20 @@ class Monster {
     this.drawX=lerp(this.drawX,this.x,0.3);
     this.drawY=lerp(this.drawY,this.y,0.3);
   }
+}
+
+function createBlobChild(parent){
+  const m=new Monster(parent.path, 0);
+  m.pathIdx=parent.pathIdx;
+  m.x=parent.x+(Math.random()-0.5)*16; m.y=parent.y+(Math.random()-0.5)*16;
+  m.drawX=m.x; m.drawY=m.y;
+  m.type='blob'; m.gen=parent.gen+1; m.baseColor=MCOLORS.blob;
+  m.radius=Math.max(8, parent.radius-5);
+  m.speed=parent.speed*1.15;
+  m.maxHp=Math.floor(parent.maxHp*0.45); m.hp=m.maxHp;
+  m.reward=Math.floor(parent.reward*0.5);
+  m.split=false; m.dead=false; m.reached=false;
+  return m;
 }
 
 // ── Tower class ───────────────────────────────────────────────────────
@@ -839,12 +916,19 @@ function updateGame(dt, now){
     t.update(dt, G.monsters, now);
 
   // monsters
+  const newBlobs=[];
   for(const m of G.monsters){
     m.advance(dt);
     if(m.reached){ G.lives--; m.reached=false; m.dead=true; SFX.lifeLost(); if(G.lives<=0){endGame();return;} }
     if(m.dead && m.hp<=0 && !m._rewarded){ m._rewarded=true; G.gold+=m.reward; G.score+=m.reward*10; SFX.monsterDie();
       spawnParticles(m.x,m.y,8,{spd:50,life:0.5,r:4,color:m.baseColor,gravity:20}); }
+    if(m.type==='blob'&&!m.split&&m.gen<2&&m.hp>0&&m.hp<=m.maxHp*0.5){
+      m.split=true;
+      newBlobs.push(createBlobChild(m),createBlobChild(m));
+      spawnParticles(m.x,m.y,10,{spd:60,life:0.4,r:5,color:'#d080ff',gravity:15});
+    }
   }
+  G.monsters.push(...newBlobs);
   G.monsters=G.monsters.filter(m=>!m.dead||!m._rewarded);
 
   // wave spawning
@@ -938,6 +1022,7 @@ function drawHUD(now){
     X.fillStyle='rgba(255,200,0,0.9)'; X.font='bold 14px monospace'; X.textAlign='right';
     X.fillText('⏸ PAUSED', isPortrait ? LW-10 : LW-PW-20, 32);
   }
+  drawMuteBtn();
 }
 
 function drawPanelPortrait(now){
@@ -1385,9 +1470,11 @@ function drawGame(now){
 let splashStars=[];
 for(let i=0;i<160;i++) splashStars.push({x:Math.random()*LW,y:Math.random()*LH,b:Math.random()*255,s:Math.random()<0.05?2:1});
 let splashMonsters=[
-  {x:200,y:340,col:'#4a8a30',r:14,speed:28,phase:0},
-  {x:400,y:360,col:'#e8c020',r:10,speed:45,phase:1.2},
-  {x:550,y:330,col:'#506088',r:16,speed:22,phase:2.4},
+  {x:200,  yBase:340,radius:11,hp:1,maxHp:1,slow:0,slowMax:1.5,dot:0,id:2001,type:'normal',baseColor:'#4a8a30',speed:30,phase:0,   drawX:200,  drawY:340,gen:0,split:false},
+  {x:680,  yBase:350,radius:9, hp:1,maxHp:1,slow:0,slowMax:1.5,dot:0,id:2002,type:'fast',  baseColor:'#e8c020',speed:50,phase:1.2, drawX:680,  drawY:350,gen:0,split:false},
+  {x:950,  yBase:345,radius:13,hp:1,maxHp:1,slow:0,slowMax:1.5,dot:0,id:2003,type:'tank',  baseColor:'#506088',speed:22,phase:2.4, drawX:950,  drawY:345,gen:0,split:false},
+  {x:-80,  yBase:355,radius:16,hp:1,maxHp:1,slow:0,slowMax:1.5,dot:0,id:2004,type:'boss',  baseColor:'#a02020',speed:36,phase:0.7, drawX:-80,  drawY:355,gen:0,split:false},
+  {x:400,  yBase:340,radius:16,hp:1,maxHp:1,slow:0,slowMax:1.5,dot:0,id:2005,type:'blob',  baseColor:'#8a3ab0',speed:24,phase:3.1, drawX:400,  drawY:340,gen:0,split:false},
 ];
 
 function drawSplash(now){
@@ -1406,16 +1493,15 @@ function drawSplash(now){
   X.fillStyle='#60a0ff'; X.fillRect(0,scanY,LW,3);
   X.globalAlpha=1;
 
-  // animated demo monsters in background
-  for(let mi=0;mi<splashMonsters.length;mi++){
-    const sm=splashMonsters[mi];
+  // animated monsters wandering in background
+  for(const sm of splashMonsters){
     sm.x+=sm.speed*0.016;
-    if(sm.x>LW+40) sm.x=-40;
-    const bob=Math.sin(now*3+sm.phase)*4;
-    X.save(); X.globalAlpha=0.18;
-    X.fillStyle=sm.col;
-    roundRect(X,sm.x-sm.r,sm.y+bob-sm.r,sm.r*2,sm.r*2,sm.r*0.4);
-    X.fill(); X.restore();
+    if(sm.x>LW+50) sm.x=-50;
+    sm.drawX=sm.x;
+    sm.drawY=sm.yBase+Math.sin(now*3+sm.phase)*4;
+    X.save(); X.globalAlpha=0.22;
+    drawMonster(sm, now);
+    X.restore();
   }
 
   // title glow layers — smaller font in portrait to fit 480px width
@@ -1484,6 +1570,24 @@ function drawSplash(now){
     X.fillText('⬡'+dt2.cost,sx,sy+50);
   });
 
+  // monster showcase below towers
+  const monsterShowY=isPortrait?showcaseY+112:showcaseY+118;
+  const mspacing=isPortrait?74:84;
+  const mtypes=['normal','fast','tank','boss','blob'];
+  const mnames={normal:'Normal',fast:'Fast',tank:'Tank',boss:'Boss',blob:'Blob'};
+  const mradii={normal:11,fast:9,tank:13,boss:16,blob:14};
+  X.fillStyle='rgba(200,140,255,0.55)'; X.font='13px Segoe UI'; X.textAlign='center';
+  X.fillText('ENEMIES', LW/2, monsterShowY-10);
+  mtypes.forEach((type,i)=>{
+    const sx=LW/2-mtypes.length/2*mspacing+i*mspacing+mspacing/2;
+    const sy=monsterShowY+22;
+    const r2=mradii[type];
+    const fakeM={drawX:sx,drawY:sy,x:sx,y:sy,radius:r2,hp:1,maxHp:1,slow:0,slowMax:1.5,dot:0,id:3000+i,type,baseColor:MCOLORS[type],gen:0,split:false};
+    drawMonster(fakeM,now);
+    X.fillStyle='#a88'; X.font='10px Segoe UI'; X.textAlign='center';
+    X.fillText(mnames[type],sx,sy+r2+15);
+  });
+
   // start prompt (blinking)
   const blink=0.55+0.45*Math.sin(now*3.5);
   X.globalAlpha=blink;
@@ -1498,6 +1602,8 @@ function drawSplash(now){
   } else {
     X.fillText('Keys: 1-5 select tower  ·  Click grid to place  ·  P pause  ·  Space start wave', LW/2, LH-34);
   }
+
+  drawMuteBtn();
 }
 
 // ── Map select screen ────────────────────────────────────────────────
@@ -1659,6 +1765,10 @@ function panelClickPortrait(lx,ly){
 }
 
 function handleClick(lx,ly){
+  // mute button — works on all screens
+  const mb=muteBtnBounds();
+  if(lx>=mb.x&&lx<=mb.x+mb.w&&ly>=mb.y&&ly<=mb.y+mb.h){ toggleMute(); return; }
+
   if(appState.screen==='splash'){ appState.screen='mapSelect'; if(!BGM.isPlaying) BGM.start(); return; }
   if(appState.screen==='mapSelect'){
     MAPS.forEach((_,i)=>{
