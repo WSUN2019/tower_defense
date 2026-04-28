@@ -919,7 +919,7 @@ function updateGame(dt, now){
   const newBlobs=[];
   for(const m of G.monsters){
     m.advance(dt);
-    if(m.reached){ G.lives--; m.reached=false; m.dead=true; SFX.lifeLost(); if(G.lives<=0){endGame();return;} }
+    if(m.reached){ G.lives--; m.reached=false; m.dead=true; m._rewarded=true; SFX.lifeLost(); if(G.lives<=0){endGame();return;} }
     if(m.dead && m.hp<=0 && !m._rewarded){ m._rewarded=true; G.gold+=m.reward; G.score+=m.reward*10; SFX.monsterDie();
       spawnParticles(m.x,m.y,8,{spd:50,life:0.5,r:4,color:m.baseColor,gravity:20}); }
     if(m.type==='blob'&&!m.split&&m.gen<2&&m.hp>0&&m.hp<=m.maxHp*0.5){
@@ -1522,31 +1522,8 @@ function drawSplash(now){
   X.fillStyle='rgba(180,210,255,0.9)'; X.font=isPortrait?'14px Segoe UI':'20px Segoe UI';
   X.fillText('Defend the Galaxy from the Alien Invasion.', LW/2, titleY+34);
 
-  // feature pills (2×2 grid in portrait, 1 row in landscape)
-  const pills=['5 Tower Types','10 Waves','2 Maps','Web Audio'];
-  if(isPortrait){
-    pills.forEach((p,i)=>{
-      const col=i%2, row=Math.floor(i/2);
-      const px2=LW/2+(col-0.5)*120, py2=titleY+60+row*34;
-      roundRect(X,px2-52,py2-14,104,26,13);
-      X.fillStyle='rgba(20,40,80,0.7)'; X.fill();
-      X.strokeStyle='rgba(60,120,200,0.5)'; X.lineWidth=1; X.stroke();
-      X.fillStyle='#8af'; X.font='12px Segoe UI'; X.textAlign='center';
-      X.fillText(p,px2,py2+4);
-    });
-  } else {
-    pills.forEach((p,i)=>{
-      const px2=LW/2-pills.length/2*120+i*120+60, py2=230;
-      roundRect(X,px2-52,py2-14,104,26,13);
-      X.fillStyle='rgba(20,40,80,0.7)'; X.fill();
-      X.strokeStyle='rgba(60,120,200,0.5)'; X.lineWidth=1; X.stroke();
-      X.fillStyle='#8af'; X.font='12px Segoe UI'; X.textAlign='center';
-      X.fillText(p,px2,py2+4);
-    });
-  }
-
   // tower showcase — tighter spacing in portrait
-  const showcaseY=isPortrait?titleY+140:310;
+  const showcaseY=isPortrait?titleY+110:270;
   const tspacing=isPortrait?76:90;
   X.fillStyle='rgba(140,180,255,0.5)'; X.font='13px Segoe UI'; X.textAlign='center';
   X.fillText('TOWERS', LW/2, showcaseY-10);
