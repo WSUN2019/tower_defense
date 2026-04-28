@@ -171,6 +171,21 @@ function drawMuteBtn(){
   X.fillStyle=muteAll?'#a44':'#46a'; X.font='9px monospace';
   X.fillText(muteAll?'OFF':'ON', x+w/2, y+h/2+9);
 }
+function speedBtnBounds(){
+  return {x:LW-104, y:4, w:46, h:42};
+}
+function drawSpeedBtn(){
+  if(!G) return;
+  const {x,y,w,h}=speedBtnBounds();
+  roundRect(X,x,y,w,h,8);
+  const fast = G.speed > 1;
+  X.fillStyle=fast?'rgba(20,80,40,0.85)':'rgba(10,30,60,0.85)'; X.fill();
+  X.strokeStyle=fast?'#4f4':'#4af'; X.lineWidth=1; X.stroke();
+  X.fillStyle=fast?'#8f8':'#8cf'; X.font='bold 11px monospace'; X.textAlign='center';
+  X.fillText('SPEED', x+w/2, y+h/2-3);
+  X.fillStyle=fast?'#4a4':'#46a'; X.font='9px monospace';
+  X.fillText(G.speed+'X', x+w/2, y+h/2+9);
+}
 
 ['touchstart','click','keydown'].forEach(ev =>
   document.addEventListener(ev, ()=>{
@@ -900,6 +915,7 @@ function newGame(mapIdx){
     stateTimer:0,
     waveCount:0,
     paused:false,
+    speed:1,
     time:0,
     popupData:null,  // {kind,title,desc,angle} — unlock modal
   };
@@ -909,6 +925,7 @@ function newGame(mapIdx){
 function updateGame(dt, now){
   if(!G||G.state==='splash'||G.state==='mapSelect'||G.state==='gameOver') return;
   if(G.paused) return;
+  dt *= G.speed;
   G.time+=dt;
 
   // towers
@@ -968,8 +985,23 @@ function startWave(){
   SFX.waveStart();
 }
 
+function getHighScore(){ return parseInt(localStorage.getItem('td_highscore')) || 0; }
+function getHighScoreName(){ return localStorage.getItem('td_highscore_name') || 'Commander'; }
+function saveHighScore(s, name){
+  localStorage.setItem('td_highscore', s);
+  localStorage.setItem('td_highscore_name', name || 'Commander');
+}
+
 function endGame(){
   G.state='gameOver';
+  const currentHS = getHighScore();
+  if(G.score > currentHS && G.score > 0){
+    const name = prompt("NEW HIGH SCORE! Enter your name:", "Commander");
+    saveHighScore(G.score, name || "Commander");
+    G.isNewRecord = true;
+  } else {
+    G.isNewRecord = false;
+  }
   SFX.gameOver();
   BGM.stop();
 }
@@ -1023,6 +1055,7 @@ function drawHUD(now){
     X.fillText('⏸ PAUSED', isPortrait ? LW-10 : LW-PW-20, 32);
   }
   drawMuteBtn();
+  drawSpeedBtn();
 }
 
 function drawPanelPortrait(now){
@@ -1458,8 +1491,15 @@ function drawGame(now){
     X.fillText(`Reached Wave ${G.wave}`, gx2, gy2-4);
     X.fillStyle='#888'; X.font='15px monospace';
     X.fillText(`Score: ${G.score}`, gx2, gy2+24);
+    if(G.isNewRecord){
+      X.fillStyle='#4f4'; X.font='bold 16px monospace';
+      X.fillText('NEW RECORD SET!', gx2, gy2+44);
+    }
+    const hs = getHighScore();
+    X.fillStyle='#fd0'; X.font='bold 14px monospace';
+    X.fillText(`BEST: ${hs} (${getHighScoreName()})`, gx2, gy2+64);
     X.fillStyle='#6a8'; X.font='14px monospace';
-    X.fillText('Tap to play again', gx2, gy2+54);
+    X.fillText('Tap to play again', gx2, gy2+84);
   }
 
   // unlock popup — draws on top of everything
@@ -1577,7 +1617,22 @@ function drawSplash(now){
   if(isPortrait){
     X.fillText('Tap grid to place tower  ·  P pause', LW/2, LH-28);
   } else {
-    X.fillText('Keys: 1-5 select tower  ·  Click grid to place  ·  P pause  ·  Space start wave', LW/2, LH-34);
+    X.fillText('Keys: 1-5 select tower  ·  U upgrade  ·  Click grid to place  ·  P pause  ·  Space start wave', LW/2, LH-34);
+  }
+
+  const hs = getHighScore();
+  if(hs > 0){
+    X.fillStyle='rgba(255,220,0,0.6)'; X.font='bold 14px monospace'; X.textAlign='left';
+    const hsText = `BEST: ${hs} (${getHighScoreName()})`;
+    X.fillText(hsText, 12, LH-14);
+
+    const tw = X.measureText(hsText).width;
+    const rx = 12 + tw + 10, ry = LH - 26, rw = 44, rh = 18;
+    roundRect(X, rx, ry, rw, rh, 4);
+    X.fillStyle = 'rgba(80,20,20,0.6)'; X.fill();
+    X.strokeStyle = 'rgba(255,100,100,0.4)'; X.lineWidth = 1; X.stroke();
+    X.fillStyle = '#f88'; X.font = 'bold 9px monospace'; X.textAlign = 'center';
+    X.fillText('RESET', rx + rw/2, ry + 12);
   }
 
   drawMuteBtn();
@@ -1746,7 +1801,31 @@ function handleClick(lx,ly){
   const mb=muteBtnBounds();
   if(lx>=mb.x&&lx<=mb.x+mb.w&&ly>=mb.y&&ly<=mb.y+mb.h){ toggleMute(); return; }
 
-  if(appState.screen==='splash'){ appState.screen='mapSelect'; if(!BGM.isPlaying) BGM.start(); return; }
+  if(appState.screen==='game' && G){
+    const sb=speedBtnBounds();
+    if(lx>=sb.x&&lx<=sb.x+sb.w&&ly>=sb.y&&ly<=sb.y+sb.h){
+      G.speed = G.speed === 1 ? 2 : 1; return;
+    }
+  }
+
+  if(appState.screen==='splash'){
+    const hs = getHighScore();
+    if(hs > 0){
+      X.font='bold 14px monospace';
+      const hsText = `BEST: ${hs} (${getHighScoreName()})`;
+      const tw = X.measureText(hsText).width;
+      const rx=12+tw+10, ry=LH-26, rw=44, rh=18;
+      if(lx>=rx && lx<=rx+rw && ly>=ry && ly<=ry+rh){
+        if(confirm('Reset high score?')){
+          localStorage.removeItem('td_highscore');
+          localStorage.removeItem('td_highscore_name');
+          SFX.monsterDie();
+        }
+        return;
+      }
+    }
+    appState.screen='mapSelect'; if(!BGM.isPlaying) BGM.start(); return;
+  }
   if(appState.screen==='mapSelect'){
     MAPS.forEach((_,i)=>{
       const bx=isPortrait?LW/2:LW/2+(i-1)*320;
@@ -1825,12 +1904,31 @@ window.addEventListener('keydown',e=>{
   if(appState.screen==='mapSelect'){
     if(e.code==='Digit1'||e.code==='Numpad1'){ newGame(0); appState.screen='game'; }
     if(e.code==='Digit2'||e.code==='Numpad2'){ newGame(1); appState.screen='game'; }
+    if(e.code==='Escape'){ appState.screen='splash'; return; }
+    return;
+  }
+  if(e.code==='Escape'){
+    if(appState.screen==='game' && G && G.state !== 'gameOver'){
+      if(confirm('Quit to menu? Current progress will be lost.')){
+        appState.screen='splash'; G=null; BGM.stop();
+      }
+    } else {
+      appState.screen='splash'; G=null;
+    }
     return;
   }
   if(!G) return;
-  if(e.code==='Escape'){ appState.screen='splash'; G=null; return; }
   if(e.code==='KeyP'||e.code==='Space'&&G.state==='wave'){ G.paused=!G.paused; e.preventDefault(); return; }
   if(e.code==='Space'&&G.state==='prep'){ startWave(); e.preventDefault(); return; }
+  if(e.code==='KeyU' && G.selectedTower){
+    const t = G.towers[G.selectedTower];
+    if(t){
+      const upgCost = 30 * t.level;
+      if(t.level < getMaxUpgrade(G.wave) && G.gold >= upgCost){
+        G.gold -= upgCost; t.level++; SFX.place();
+      }
+    }
+  }
   const keyMap={'Digit1':'gun','Digit2':'flame','Digit3':'bomb','Digit4':'freeze','Digit5':'trigun'};
   if(keyMap[e.code]){ G.selectedType=keyMap[e.code]; G.selectedTower=null; }
 });
