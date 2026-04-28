@@ -12,12 +12,15 @@ function roundRect(ctx,x,y,w,h,r){
   ctx.closePath();
 }
 
-// ── Color helpers ─────────────────────────────────────────────────────
+// ── Color helpers (memoized) ──────────────────────────────────────────
+const _shadeCache = {};
 function shadeColor(col, pct){
+  const key = col + pct;
+  if(_shadeCache[key]) return _shadeCache[key];
   if(col.length===4) col='#'+col[1]+col[1]+col[2]+col[2]+col[3]+col[3];
   let r2=parseInt(col.slice(1,3),16)||0, g2=parseInt(col.slice(3,5),16)||0, b2=parseInt(col.slice(5,7),16)||0;
   r2=Math.max(0,Math.min(255,r2+pct)); g2=Math.max(0,Math.min(255,g2+pct)); b2=Math.max(0,Math.min(255,b2+pct));
-  return '#'+[r2,g2,b2].map(v=>Math.round(v).toString(16).padStart(2,'0')).join('');
+  return (_shadeCache[key]='#'+[r2,g2,b2].map(v=>Math.round(v).toString(16).padStart(2,'0')).join(''));
 }
 function lightenColor(col,pct){return shadeColor(col,pct);}
 
@@ -117,7 +120,7 @@ function drawBullets(){
 }
 
 // ── Tile drawing ──────────────────────────────────────────────────────
-function drawTile(col,row,isPath,isEntry,isExit,hover,selected){
+function drawTile(col,row,isPath,isEntry,isExit,hover,selected,ctx=X){
   const [cx, cy] = cellCenter(col, row);
   const hw = CS * 0.5;
   const hh = CS * 0.25;
@@ -129,54 +132,48 @@ function drawTile(col,row,isPath,isEntry,isExit,hover,selected){
   const top = [[cx, topY - hh], [cx + hw, topY], [cx, topY + hh], [cx - hw, topY]];
   const bot = [[cx, cy - hh], [cx + hw, cy], [cx, cy + hh], [cx - hw, cy]];
 
-  X.beginPath();
-  X.moveTo(top[1][0], top[1][1]);
-  X.lineTo(top[2][0], top[2][1]);
-  X.lineTo(top[3][0], top[3][1]);
-  X.lineTo(bot[3][0], bot[3][1]);
-  X.lineTo(bot[2][0], bot[2][1]);
-  X.lineTo(bot[1][0], bot[1][1]);
-  X.closePath();
-  X.fillStyle = isPath ? '#1a150e' : (sel ? '#0a1d13' : '#0a141e');
-  X.fill();
+  ctx.beginPath();
+  ctx.moveTo(top[1][0], top[1][1]);
+  ctx.lineTo(top[2][0], top[2][1]);
+  ctx.lineTo(top[3][0], top[3][1]);
+  ctx.lineTo(bot[3][0], bot[3][1]);
+  ctx.lineTo(bot[2][0], bot[2][1]);
+  ctx.lineTo(bot[1][0], bot[1][1]);
+  ctx.closePath();
+  ctx.fillStyle = isPath ? '#1a150e' : (sel ? '#0a1d13' : '#0a141e');
+  ctx.fill();
 
-  X.fillStyle = 'rgba(0,0,0,0.2)';
-  X.beginPath(); X.moveTo(top[2][0], top[2][1]); X.lineTo(top[3][0], top[3][1]); X.lineTo(bot[3][0], bot[3][1]); X.lineTo(bot[2][0], bot[2][1]); X.fill();
+  ctx.fillStyle = 'rgba(0,0,0,0.2)';
+  ctx.beginPath(); ctx.moveTo(top[2][0], top[2][1]); ctx.lineTo(top[3][0], top[3][1]); ctx.lineTo(bot[3][0], bot[3][1]); ctx.lineTo(bot[2][0], bot[2][1]); ctx.fill();
 
   if(isPath){
-    const g=X.createLinearGradient(cx, topY - hh, cx, topY + hh);
-    g.addColorStop(0,'#2a2215'); g.addColorStop(1,'#1e1a10');
-    X.fillStyle=g;
+    ctx.fillStyle='#221c0f';
   } else {
-    const base = sel?'#1e3a2a': (hoverShift?'#1a2e3e':'#151f2a');
-    const fill = sel?'#264d38': (hoverShift?'#1f3a52':'#1c2b3a');
-    const g=X.createLinearGradient(cx - hw, topY, cx + hw, topY);
-    g.addColorStop(0,fill); g.addColorStop(1,base);
-    X.fillStyle=g;
+    ctx.fillStyle = sel?'#1e3028': (hoverShift?'#1a2c40':'#192330');
   }
 
-  X.beginPath();
-  X.moveTo(top[0][0], top[0][1]);
-  top.slice(1).forEach(p => X.lineTo(p[0], p[1]));
-  X.closePath();
-  X.fill();
+  ctx.beginPath();
+  ctx.moveTo(top[0][0], top[0][1]);
+  top.slice(1).forEach(p => ctx.lineTo(p[0], p[1]));
+  ctx.closePath();
+  ctx.fill();
 
-  X.strokeStyle = isPath ? 'rgba(0,0,0,0.3)' : 'rgba(100,180,255,0.1)';
-  X.lineWidth = 1;
-  X.stroke();
+  ctx.strokeStyle = isPath ? 'rgba(0,0,0,0.3)' : 'rgba(100,180,255,0.1)';
+  ctx.lineWidth = 1;
+  ctx.stroke();
 
   if(isEntry||isExit){
     const col2=isEntry?'#4f8':'#f44';
-    X.fillStyle=col2+'33';
-    X.beginPath();
-    X.moveTo(top[0][0], top[0][1]);
-    top.slice(1).forEach(p => X.lineTo(p[0], p[1]));
-    X.closePath();
-    X.fill();
-    X.strokeStyle=col2; X.lineWidth=2;
-    X.stroke();
+    ctx.fillStyle=col2+'33';
+    ctx.beginPath();
+    ctx.moveTo(top[0][0], top[0][1]);
+    top.slice(1).forEach(p => ctx.lineTo(p[0], p[1]));
+    ctx.closePath();
+    ctx.fill();
+    ctx.strokeStyle=col2; ctx.lineWidth=2;
+    ctx.stroke();
     const lbl=isEntry?'IN':'OUT';
-    X.fillStyle=col2; X.font='bold 11px monospace'; X.textAlign='center';
-    X.fillText(lbl,cx,topY+4);
+    ctx.fillStyle=col2; ctx.font='bold 11px monospace'; ctx.textAlign='center';
+    ctx.fillText(lbl,cx,topY+4);
   }
 }
