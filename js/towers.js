@@ -20,9 +20,8 @@ function drawTower3D(t, now){
   X.save();
 
   X.globalAlpha=0.3;
-  const sg=X.createRadialGradient(cx+4,cy+6,0,cx+4,cy+6,bs+4);
-  sg.addColorStop(0,'#000'); sg.addColorStop(1,'transparent');
-  X.fillStyle=sg; X.beginPath(); X.ellipse(cx+4,cy+6,bs+4,bs/2,0,0,Math.PI*2); X.fill();
+  X.fillStyle='#000';
+  X.beginPath(); X.ellipse(cx+4,cy+6,bs+4,bs/2,0,0,Math.PI*2); X.fill();
   X.globalAlpha=1;
 
   switch(t.kind){
@@ -110,9 +109,8 @@ function drawFlameTower(ctx,cx,cy,bs,t,now,lvl, rotOff=0){
       const fx=Math.cos(fa)*fd, fy=Math.sin(fa)*fd;
       const fr=4+Math.random()*8;
       ctx.globalAlpha=t.flashTimer*(0.5+Math.random()*0.5);
-      const flg=ctx.createRadialGradient(fx,fy,0,fx,fy,fr);
-      flg.addColorStop(0,'#fff8a0'); flg.addColorStop(0.5,'#ff6a00'); flg.addColorStop(1,'transparent');
-      ctx.fillStyle=flg; ctx.beginPath(); ctx.arc(fx,fy,fr,0,Math.PI*2); ctx.fill();
+      ctx.fillStyle='#ff6a00';
+      ctx.beginPath(); ctx.arc(fx,fy,fr,0,Math.PI*2); ctx.fill();
     }
     ctx.globalAlpha=1;
   }
@@ -140,9 +138,8 @@ function drawBombTower(ctx,cx,cy,bs,t,now,lvl, rotOff=0){
   ctx.restore();
   if(t.flashTimer>0){
     ctx.globalAlpha=t.flashTimer*0.6;
-    const g2=ctx.createRadialGradient(0,0,0,0,0,bs*1.5);
-    g2.addColorStop(0,'#f84'); g2.addColorStop(1,'transparent');
-    ctx.fillStyle=g2; ctx.beginPath(); ctx.arc(0,0,bs*1.5,0,Math.PI*2); ctx.fill();
+    ctx.fillStyle='#f84';
+    ctx.beginPath(); ctx.arc(0,0,bs*1.5,0,Math.PI*2); ctx.fill();
     ctx.globalAlpha=1;
   }
   ctx.restore();

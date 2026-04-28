@@ -1,4 +1,7 @@
 'use strict';
+// ── Button bounds helpers ─────────────────────────────────────────────
+function resetBtnBounds(){ return {x:LW-58,y:LH-26,w:50,h:18}; }
+
 // ── Splash screen state ───────────────────────────────────────────────
 let splashStars=[];
 let splashMonsters=[];
@@ -124,15 +127,11 @@ function drawPanelPortrait(now){
   const btnH=46, btnY=LH-btnH-6;
   roundRect(X,px,btnY,pw,btnH,8);
   if(G.state==='prep'){
-    const bg=X.createLinearGradient(px,btnY,px,btnY+btnH);
-    bg.addColorStop(0,'#1a5a1a'); bg.addColorStop(1,'#0c3010');
-    X.fillStyle=bg; X.fill(); X.strokeStyle='#4f4'; X.lineWidth=2; X.stroke();
+    X.fillStyle='#112e11'; X.fill(); X.strokeStyle='#4f4'; X.lineWidth=2; X.stroke();
     X.fillStyle='#8f8'; X.font='bold 16px monospace'; X.textAlign='center';
     X.fillText('▶ START WAVE', px+pw/2, btnY+30);
   } else if(G.state==='wave'){
-    const bg=X.createLinearGradient(px,btnY,px,btnY+btnH);
-    bg.addColorStop(0,'#3a1a00'); bg.addColorStop(1,'#1a0c00');
-    X.fillStyle=bg; X.fill(); X.strokeStyle='#f80'; X.lineWidth=1; X.stroke();
+    X.fillStyle='#2a1400'; X.fill(); X.strokeStyle='#f80'; X.lineWidth=1; X.stroke();
     X.fillStyle='#fa6'; X.font='bold 14px monospace'; X.textAlign='center';
     X.fillText(G.paused?'▶ RESUME':'⏸ PAUSE', px+pw/2, btnY+30);
   }
@@ -142,9 +141,7 @@ function drawPanel(now){
   if(isPortrait){ drawPanelPortrait(now); return; }
   const px=PX, pw=PW;
 
-  const pg=X.createLinearGradient(px,0,px+pw,0);
-  pg.addColorStop(0,'rgba(8,14,28,0.97)'); pg.addColorStop(1,'rgba(12,20,38,0.97)');
-  X.fillStyle=pg; X.fillRect(px,52,pw,LH-52);
+  X.fillStyle='rgba(8,14,28,0.97)'; X.fillRect(px,52,pw,LH-52);
   X.strokeStyle='rgba(60,120,200,0.25)'; X.lineWidth=1;
   X.beginPath(); X.moveTo(px,52); X.lineTo(px,LH); X.stroke();
 
@@ -237,16 +234,12 @@ function drawPanel(now){
   const btnY=LH-70, btnH=50;
   roundRect(X,px+8,btnY,pw-16,btnH,8);
   if(G.state==='prep'){
-    const bg=X.createLinearGradient(px+8,btnY,px+8,btnY+btnH);
-    bg.addColorStop(0,'#1a5a1a'); bg.addColorStop(1,'#0c3010');
-    X.fillStyle=bg; X.fill();
+    X.fillStyle='#112e11'; X.fill();
     X.strokeStyle='#4f4'; X.lineWidth=2; X.stroke();
     X.fillStyle='#8f8'; X.font='bold 15px monospace'; X.textAlign='center';
     X.fillText('▶ START WAVE', px+pw/2, btnY+30);
   } else if(G.state==='wave'){
-    const bg=X.createLinearGradient(px+8,btnY,px+8,btnY+btnH);
-    bg.addColorStop(0,'#3a1a00'); bg.addColorStop(1,'#1a0c00');
-    X.fillStyle=bg; X.fill();
+    X.fillStyle='#2a1400'; X.fill();
     X.strokeStyle='#f80'; X.lineWidth=1; X.stroke();
     X.fillStyle='#fa6'; X.font='bold 13px monospace'; X.textAlign='center';
     X.fillText(G.paused?'▶ RESUME':'⏸ PAUSE', px+pw/2, btnY+30);
@@ -362,27 +355,44 @@ function drawUnlockPopup(now){
   X.fillText('or tap anywhere', cx, btnY+btnH+14);
 }
 
+// ── Offscreen grid cache ──────────────────────────────────────────────
+let _gridCanvas=null, _gridSig=null;
+function drawGrid(){
+  const hc=G.hoverCell?G.hoverCell.join(','):'-';
+  const sig=hc+'|'+(G.selectedTower||'-');
+  if(!_gridCanvas||_gridCanvas.width!==LW||_gridCanvas.height!==LH){
+    _gridCanvas=document.createElement('canvas');
+    _gridCanvas.width=LW; _gridCanvas.height=LH;
+    _gridSig=null;
+  }
+  if(sig!==_gridSig){
+    _gridSig=sig;
+    const ctx=_gridCanvas.getContext('2d');
+    ctx.clearRect(0,0,LW,LH);
+    const [tlx,tly]=toIso(GX,GY),[trx,tr_y]=toIso(GX+COLS*CS,GY);
+    const [brx,bry]=toIso(GX+COLS*CS,GY+ROWS*CS),[blx,bly]=toIso(GX,GY+ROWS*CS);
+    ctx.fillStyle='#080d18';
+    ctx.beginPath();ctx.moveTo(tlx,tly);ctx.lineTo(trx,tr_y);ctx.lineTo(brx,bry);ctx.lineTo(blx,bly);ctx.closePath();ctx.fill();
+    const [ec,er]=G.path[0],[xc,xr]=G.path[G.path.length-1];
+    if(!G._tileCache){
+      G._tileCache=[];
+      for(let r=0;r<ROWS;r++) for(let c=0;c<COLS;c++) G._tileCache.push({c,r});
+      G._tileCache.sort((a,b)=>(a.r+a.c)-(b.r+b.c));
+    }
+    const sel=G.selectedTower?[G.towers[G.selectedTower]?.col,G.towers[G.selectedTower]?.row]:null;
+    for(const t of G._tileCache){
+      const {c,r}=t;
+      drawTile(c,r,G.pathSet.has(r*COLS+c),c===ec&&r===er,c===xc&&r===xr,G.hoverCell,sel,ctx);
+    }
+  }
+  X.drawImage(_gridCanvas,0,0);
+}
+
 // ── Main game renderer ────────────────────────────────────────────────
 function drawGame(now){
   X.globalAlpha=1; X.shadowBlur=0; X.setLineDash([]);
 
-  const [tlx,tly]=toIso(GX,GY), [trx,tr_y]=toIso(GX+COLS*CS,GY);
-  const [brx,bry]=toIso(GX+COLS*CS,GY+ROWS*CS), [blx,bly]=toIso(GX,GY+ROWS*CS);
-  X.fillStyle='#080d18';
-  X.beginPath(); X.moveTo(tlx,tly); X.lineTo(trx,tr_y); X.lineTo(brx,bry); X.lineTo(blx,bly); X.closePath(); X.fill();
-
-  const [ec,er]=G.path[0], [xc,xr]=G.path[G.path.length-1];
-  if(!G._tileCache){
-    G._tileCache = [];
-    for(let r=0; r<ROWS; r++) for(let c=0; c<COLS; c++) G._tileCache.push({c,r});
-    G._tileCache.sort((a,b) => (a.r+a.c) - (b.r+b.c));
-  }
-  for(const t of G._tileCache){
-    const {c,r} = t;
-    const isPath=G.pathSet.has(r*COLS+c);
-    drawTile(c,r,isPath, c===ec&&r===er, c===xc&&r===xr, G.hoverCell,
-      G.selectedTower?[G.towers[G.selectedTower]?.col,G.towers[G.selectedTower]?.row]:null);
-  }
+  drawGrid();
 
   if(G.hoverCell&&G.state==='prep'||G.state==='wave'){
     const [hc,hr]=G.hoverCell||[-1,-1];
@@ -537,19 +547,63 @@ function drawSplash(now){
     X.fillText('1-5 select  ·  click grid to place  ·  U upgrade  ·  P pause  ·  Space start', LW/2, LH-34);
   }
 
-  const hs = getHighScore();
-  if(hs > 0){
-    X.fillStyle='rgba(255,220,0,0.6)'; X.font='bold 14px monospace'; X.textAlign='left';
-    const hsText = `BEST: ${hs} (${getHighScoreName()})`;
-    X.fillText(hsText, 12, LH-14);
+  // ── Leaderboard ───────────────────────────────────────────────────────
+  const scores=getTopScores();
+  if(scores.length>0){
+    const maxVisible=6, rowH=21, headerH=30;
+    const boxW=isPortrait?360:320;
+    const bx=LW/2-boxW/2;
+    const listRows=Math.min(scores.length,maxVisible);
+    const listH=listRows*rowH;
+    const boxH=headerH+listH+8;
+    const lbTop=titleY+52;
+    roundRect(X,bx,lbTop,boxW,boxH,8);
+    X.fillStyle='rgba(4,10,24,0.78)'; X.fill();
+    X.strokeStyle='rgba(50,90,170,0.3)'; X.lineWidth=1; X.stroke();
 
-    const tw = X.measureText(hsText).width;
-    const rx = 12 + tw + 10, ry = LH - 26, rw = 44, rh = 18;
-    roundRect(X, rx, ry, rw, rh, 4);
-    X.fillStyle = 'rgba(80,20,20,0.6)'; X.fill();
-    X.strokeStyle = 'rgba(255,100,100,0.4)'; X.lineWidth = 1; X.stroke();
-    X.fillStyle = '#f88'; X.font = 'bold 9px monospace'; X.textAlign = 'center';
-    X.fillText('RESET', rx + rw/2, ry + 12);
+    X.fillStyle='#5a9de0'; X.font='bold 11px monospace'; X.textAlign='center';
+    X.fillText('── TOP SCORES ──', LW/2, lbTop+18);
+
+    const listTop=lbTop+headerH;
+    const totalH=scores.length*rowH;
+    const needsScroll=scores.length>maxVisible;
+
+    X.save();
+    X.beginPath(); X.rect(bx+4,listTop,boxW-8,listH); X.clip();
+
+    const scrollY=needsScroll?(now*18)%totalH:0;
+    const rankCols=['#ffe066','#c8c8d8','#cd9060'];
+    for(let pass=0;pass<(needsScroll?2:1);pass++){
+      for(let i=0;i<scores.length;i++){
+        const s=scores[i];
+        const y=listTop+i*rowH-scrollY+pass*totalH+rowH*0.76;
+        if(y<listTop-rowH||y>listTop+listH+rowH) continue;
+        const col=i<3?rankCols[i]:'#6a7a8a';
+        X.fillStyle=col; X.font=(i<3?'bold ':'')+`11px monospace`;
+        X.textAlign='left';  X.fillText(`#${i+1}`,bx+8,y);
+        X.fillText((s.name||'Commander').slice(0,14),bx+34,y);
+        X.textAlign='right'; X.fillText(s.score.toLocaleString(),bx+boxW-32,y);
+        X.fillStyle='#3d5068'; X.font='9px monospace';
+        X.fillText(`W${s.wave}`,bx+boxW-8,y);
+      }
+    }
+    X.restore();
+
+    if(needsScroll){
+      const fg=X.createLinearGradient(0,listTop,0,listTop+14);
+      fg.addColorStop(0,'rgba(4,10,24,0.85)'); fg.addColorStop(1,'rgba(4,10,24,0)');
+      X.fillStyle=fg; X.fillRect(bx+4,listTop,boxW-8,14);
+      const bg2=X.createLinearGradient(0,listTop+listH-14,0,listTop+listH);
+      bg2.addColorStop(0,'rgba(4,10,24,0)'); bg2.addColorStop(1,'rgba(4,10,24,0.85)');
+      X.fillStyle=bg2; X.fillRect(bx+4,listTop+listH-14,boxW-8,14);
+    }
+
+    const rb=resetBtnBounds();
+    roundRect(X,rb.x,rb.y,rb.w,rb.h,4);
+    X.fillStyle='rgba(55,12,12,0.65)'; X.fill();
+    X.strokeStyle='rgba(180,60,60,0.3)'; X.lineWidth=1; X.stroke();
+    X.fillStyle='#e07070'; X.font='bold 9px monospace'; X.textAlign='center';
+    X.fillText('RESET',rb.x+rb.w/2,rb.y+12);
   }
 
   drawMuteBtn();

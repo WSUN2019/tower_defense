@@ -35,9 +35,11 @@ resize();
 // ── App state & render loop ───────────────────────────────────────────
 const appState={screen:'splash'};
 let lastTime=0;
+const FRAME_MS=1000/30;
 
 function frame(ts){
   requestAnimationFrame(frame);
+  if(ts-lastTime<FRAME_MS) return;
   const dt=Math.min((ts-lastTime)/1000, 0.05);
   lastTime=ts;
   const now=ts/1000;

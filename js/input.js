@@ -87,20 +87,15 @@ function handleClick(lx,ly){
   }
 
   if(appState.screen==='splash'){
-    const hs = getHighScore();
-    if(hs > 0){
-      X.font='bold 14px monospace';
-      const hsText = `BEST: ${hs} (${getHighScoreName()})`;
-      const tw = X.measureText(hsText).width;
-      const rx=12+tw+10, ry=LH-26, rw=44, rh=18;
-      if(lx>=rx && lx<=rx+rw && ly>=ry && ly<=ry+rh){
-        if(confirm('Reset high score?')){
-          localStorage.removeItem('td_highscore');
-          localStorage.removeItem('td_highscore_name');
-          SFX.monsterDie();
-        }
-        return;
+    const rb=resetBtnBounds();
+    if(getTopScores().length>0&&lx>=rb.x&&lx<=rb.x+rb.w&&ly>=rb.y&&ly<=rb.y+rb.h){
+      if(confirm('Reset all scores?')){
+        localStorage.removeItem('td_scores');
+        localStorage.removeItem('td_highscore');
+        localStorage.removeItem('td_highscore_name');
+        SFX.monsterDie();
       }
+      return;
     }
     appState.screen='mapSelect'; if(!BGM.isPlaying) BGM.start(); return;
   }
@@ -118,7 +113,6 @@ function handleClick(lx,ly){
 
   if(G.popupData){
     G.popupData=null;
-    if(G.state==='prep') startWave();
     return;
   }
 

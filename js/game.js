@@ -21,11 +21,24 @@ function isUnlocked(kind,w){ const u=UNLOCK_WAVE[kind]; return u===undefined||w>
 function placedCount(){ return Object.keys(G.towers).length; }
 
 // ── High score ────────────────────────────────────────────────────────
-function getHighScore(){ return parseInt(localStorage.getItem('td_highscore')) || 0; }
-function getHighScoreName(){ return localStorage.getItem('td_highscore_name') || 'Commander'; }
-function saveHighScore(s, name){
-  localStorage.setItem('td_highscore', s);
-  localStorage.setItem('td_highscore_name', name || 'Commander');
+function getTopScores(){
+  try{
+    const arr=JSON.parse(localStorage.getItem('td_scores')||'[]');
+    if(!arr.length){
+      const hs=parseInt(localStorage.getItem('td_highscore'))||0;
+      if(hs>0) return [{score:hs,name:localStorage.getItem('td_highscore_name')||'Commander',wave:0}];
+    }
+    return arr;
+  }catch(e){return[];}
+}
+function getHighScore(){ const s=getTopScores(); return s.length?s[0].score:0; }
+function getHighScoreName(){ const s=getTopScores(); return s.length?s[0].name:'Commander'; }
+function saveHighScore(score,name){
+  const arr=getTopScores();
+  arr.push({score,name:name||'Commander',wave:G?G.wave:0});
+  arr.sort((a,b)=>b.score-a.score);
+  arr.splice(10);
+  localStorage.setItem('td_scores',JSON.stringify(arr));
 }
 
 // ── Game state ────────────────────────────────────────────────────────
@@ -129,13 +142,13 @@ function startWave(){
 
 function endGame(){
   G.state='gameOver';
-  const currentHS = getHighScore();
-  if(G.score > currentHS && G.score > 0){
-    const name = prompt("NEW HIGH SCORE! Enter your name:", "Commander");
-    saveHighScore(G.score, name || "Commander");
-    G.isNewRecord = true;
+  const prevBest=getHighScore();
+  if(G.score>0){
+    const name=prompt('Game over! Enter your name for the leaderboard:','Commander');
+    saveHighScore(G.score,name||'Commander');
+    G.isNewRecord=G.score>prevBest;
   } else {
-    G.isNewRecord = false;
+    G.isNewRecord=false;
   }
   SFX.gameOver();
   BGM.stop();
