@@ -98,7 +98,9 @@ function updateGame(dt, now){
     if(m.type==='blob'&&!m.split&&m.gen<2&&m.hp>0&&m.hp<=m.maxHp*0.5){
       m.split=true;
       newBlobs.push(createBlobChild(m),createBlobChild(m));
-      spawnParticles(m.x,m.y,10,{spd:60,life:0.4,r:5,color:'#d080ff',gravity:15});
+      spawnParticles(m.x,m.y,18,{spd:80,life:0.55,r:6,color:'#d080ff',gravity:20});
+      spawnParticles(m.x,m.y,8,{spd:35,life:0.8,r:10,color:'#b050e0',gravity:8});
+      SFX.blobSplit();
     }
   }
   G.monsters.push(...newBlobs);

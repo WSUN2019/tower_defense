@@ -28,9 +28,51 @@ function resize(){
   scale=Math.min(C.width/LW, C.height/LH);
   offX=(C.width-LW*scale)/2;
   offY=(C.height-LH*scale)/2;
+  updateZoomTransform();
 }
 window.addEventListener('resize', resize);
-resize();
+
+// ── Zoom / pan ────────────────────────────────────────────────────────
+let zoomLevel=1.0, zoomPanX=0, zoomPanY=0;
+const ZOOM_MIN=1.0, ZOOM_MAX=3.5;
+let effectiveOffX=0, effectiveOffY=0, effectiveScale=1;
+
+function updateZoomTransform(){
+  effectiveScale=scale*zoomLevel;
+  const csx=offX+LW*scale/2, csy=offY+LH*scale/2;
+  effectiveOffX=csx-LW*effectiveScale/2+zoomPanX;
+  effectiveOffY=csy-LH*effectiveScale/2+zoomPanY;
+}
+
+function clampPan(){
+  // keep at least half the canvas visible in each direction
+  const es=scale*zoomLevel;
+  const mx=LW*es*0.5, my=LH*es*0.5;
+  zoomPanX=Math.max(-mx,Math.min(mx,zoomPanX));
+  zoomPanY=Math.max(-my,Math.min(my,zoomPanY));
+}
+
+function applyZoomAt(factor, clientX, clientY){
+  updateZoomTransform();
+  const lx=(clientX-effectiveOffX)/effectiveScale;
+  const ly=(clientY-effectiveOffY)/effectiveScale;
+  const newZ=Math.max(ZOOM_MIN,Math.min(ZOOM_MAX,zoomLevel*factor));
+  const newES=scale*newZ;
+  const csx=offX+LW*scale/2, csy=offY+LH*scale/2;
+  const baseOX=csx-LW*newES/2, baseOY=csy-LH*newES/2;
+  zoomPanX=clientX-baseOX-lx*newES;
+  zoomPanY=clientY-baseOY-ly*newES;
+  zoomLevel=newZ;
+  clampPan();
+  updateZoomTransform();
+  _gridSig=null; // invalidate tile cache
+}
+
+function resetZoom(){
+  zoomLevel=1.0; zoomPanX=0; zoomPanY=0;
+  updateZoomTransform();
+  _gridSig=null;
+}
 
 // ── App state & render loop ───────────────────────────────────────────
 const appState={screen:'splash'};
@@ -47,9 +89,10 @@ function frame(ts){
   X.setTransform(1,0,0,1,0,0);
   X.clearRect(0,0,C.width,C.height);
 
+  updateZoomTransform();
   X.save();
-  X.translate(offX,offY);
-  X.scale(scale,scale);
+  X.translate(effectiveOffX,effectiveOffY);
+  X.scale(effectiveScale,effectiveScale);
 
   if(appState.screen==='splash'){
     drawSplash(now);
@@ -63,4 +106,5 @@ function frame(ts){
   X.restore();
 }
 
+resize();
 requestAnimationFrame(frame);

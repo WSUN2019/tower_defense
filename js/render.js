@@ -24,8 +24,12 @@ function shadeColor(col, pct){
 }
 function lightenColor(col,pct){return shadeColor(col,pct);}
 
+// ── View mode ─────────────────────────────────────────────────────────
+let flatView = false;
+
 // ── Isometric projection helpers ──────────────────────────────────────
 function toIso(lx, ly) {
+  if(flatView) return [lx, ly];
   const c = (lx - GX) / CS;
   const r = (ly - GY) / CS;
   const centerX = isPortrait ? LW / 2 : GX + (COLS * CS) / 2;
@@ -36,10 +40,12 @@ function toIso(lx, ly) {
 }
 
 function cellCenter(col, row) {
+  if(flatView) return [GX + col*CS + CS/2, GY + row*CS + CS/2];
   return toIso(GX + col * CS + CS / 2, GY + row * CS + CS / 2);
 }
 
-function worldToGrid(wx,wy){
+function worldToGrid(wx, wy){
+  if(flatView) return [Math.floor((wx-GX)/CS), Math.floor((wy-GY)/CS)];
   const centerX = isPortrait ? LW / 2 : GX + (COLS * CS) / 2;
   const centerY = GY + (ROWS * CS) / 4;
   const dx = wx - centerX;
@@ -121,6 +127,23 @@ function drawBullets(){
 
 // ── Tile drawing ──────────────────────────────────────────────────────
 function drawTile(col,row,isPath,isEntry,isExit,hover,selected,ctx=X){
+  if(flatView){
+    const tx=GX+col*CS, ty=GY+row*CS;
+    const hov=hover&&hover[0]===col&&hover[1]===row;
+    const sel=selected&&selected[0]===col&&selected[1]===row;
+    ctx.fillStyle=isPath?'#221c0f':sel?'#1e3028':hov?'#1f3050':'#192330';
+    ctx.fillRect(tx,ty,CS-1,CS-1);
+    ctx.strokeStyle=isPath?'rgba(0,0,0,0.3)':'rgba(100,180,255,0.1)';
+    ctx.lineWidth=1; ctx.strokeRect(tx,ty,CS-1,CS-1);
+    if(isEntry||isExit){
+      const mc=isEntry?'#4f8':'#f44';
+      ctx.fillStyle=mc+'44'; ctx.fillRect(tx,ty,CS-1,CS-1);
+      ctx.strokeStyle=mc; ctx.lineWidth=2; ctx.strokeRect(tx,ty,CS-1,CS-1);
+      ctx.fillStyle=mc; ctx.font='bold 11px monospace'; ctx.textAlign='center';
+      ctx.fillText(isEntry?'IN':'OUT',tx+CS/2,ty+CS/2+4);
+    }
+    return;
+  }
   const [cx, cy] = cellCenter(col, row);
   const hw = CS * 0.5;
   const hh = CS * 0.25;

@@ -141,6 +141,16 @@ const SFX = {
   bombFire:   () => { playTone(60,0.4,0.2,'sine'); playNoise(0.35,0.18,400); playTone(120,0.2,0.1,'sine'); },
   freezeFire: () => { playTone(1200,0.3,0.08,'sine',1200); playTone(900,0.3,0.06,'sine'); },
   monsterDie: () => { playNoise(0.15,0.1,600); playTone(220,0.1,0.06,'sawtooth'); },
+  blobSplit:  () => {
+    if(muteAll) return; const a=getAC(); if(!a) return;
+    const dur=0.52, buf=a.createBuffer(1,Math.floor(a.sampleRate*dur),a.sampleRate), d=buf.getChannelData(0);
+    for(let i=0;i<d.length;i++) d[i]=(Math.random()*2-1)*Math.pow(Math.max(0,1-i/(d.length*0.55)),0.35);
+    const src=a.createBufferSource(), flt=a.createBiquadFilter(); flt.type='lowpass';
+    flt.frequency.setValueAtTime(5000,a.currentTime); flt.frequency.exponentialRampToValueAtTime(140,a.currentTime+dur*0.75);
+    const g=a.createGain(); g.gain.setValueAtTime(0.34,a.currentTime); g.gain.exponentialRampToValueAtTime(0.001,a.currentTime+dur);
+    src.buffer=buf; src.connect(flt); flt.connect(g); g.connect(a.destination); src.start();
+    playTone(88,0.28,0.13,'sine'); playTone(220,0.07,0.05,'sine');
+  },
   lifeLost:   () => { playTone(220,0.3,0.2,'sine'); playTone(180,0.4,0.2,'sine'); },
   place:      () => { playTone(440,0.1,0.12,'sine'); playTone(660,0.1,0.1,'sine'); },
   waveStart:  () => { [440,554,660].forEach((f,i) => setTimeout(()=>playTone(f,0.2,0.12,'sine'),i*120)); },

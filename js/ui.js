@@ -1,6 +1,19 @@
 'use strict';
 // ── Button bounds helpers ─────────────────────────────────────────────
 function resetBtnBounds(){ return {x:LW-58,y:LH-26,w:50,h:18}; }
+function viewBtnBounds(){ return {x:LW-156,y:4,w:46,h:42}; }
+function commanderAvatarBounds(){ return {cx:LW-202,cy:26,r:20}; }
+
+function drawViewBtn(){
+  if(appState.screen!=='game'||!G) return;
+  const {x,y,w,h}=viewBtnBounds();
+  roundRect(X,x,y,w,h,6);
+  X.fillStyle=flatView?'rgba(30,60,30,0.9)':'rgba(20,30,50,0.85)';
+  X.fill();
+  X.strokeStyle=flatView?'#4f8':'rgba(80,140,220,0.5)'; X.lineWidth=1.5; X.stroke();
+  X.fillStyle=flatView?'#8f8':'#7aacde'; X.font='bold 11px monospace'; X.textAlign='center';
+  X.fillText(flatView?'FLAT':'3D',x+w/2,y+26);
+}
 
 // ── Splash screen state ───────────────────────────────────────────────
 let splashStars=[];
@@ -41,6 +54,16 @@ function drawHUD(now){
   }
   drawMuteBtn();
   drawSpeedBtn();
+  drawViewBtn();
+  const {cx:acx,cy:acy,r:ar}=commanderAvatarBounds();
+  drawChibiPortrait(acx,acy,ar,now,null);
+  // zoom indicator
+  if(zoomLevel>1.01){
+    X.fillStyle='rgba(10,20,40,0.75)';
+    roundRect(X,LW-204,48,44,14,4); X.fill();
+    X.fillStyle='#6cf'; X.font='bold 9px monospace'; X.textAlign='center';
+    X.fillText(`${zoomLevel.toFixed(1)}x`, LW-182, 58);
+  }
 }
 
 function drawPanelPortrait(now){
@@ -246,6 +269,163 @@ function drawPanel(now){
   }
 }
 
+// ── Chibi anime portrait (oval-framed, scales with r) ─────────────────
+function drawChibiPortrait(cx, cy, r, now, label){
+  const bob=Math.sin(now*2.2)*r*0.04;
+  X.save();
+  X.translate(cx, cy+bob);
+
+  // ── Clip to oval frame ────────────────────────────────────────────
+  X.save();
+  X.beginPath(); X.ellipse(0,0,r,r*1.12,0,0,Math.PI*2); X.clip();
+
+  // Background
+  X.fillStyle='#cbb8de';
+  X.fillRect(-r*1.2,-r*1.3,r*2.4,r*2.6);
+  // subtle vignette
+  const vg=X.createRadialGradient(0,0,r*0.4,0,0,r*1.2);
+  vg.addColorStop(0,'rgba(220,200,240,0)'); vg.addColorStop(1,'rgba(60,20,80,0.35)');
+  X.fillStyle=vg; X.fillRect(-r*1.2,-r*1.3,r*2.4,r*2.6);
+
+  const hc='#0e0e18';
+
+  // ── Hair back (two flowing side pieces behind head) ───────────────
+  X.fillStyle=hc;
+  X.beginPath();
+  X.moveTo(-r*0.18,-r*0.90);
+  X.bezierCurveTo(-r*0.55,-r*1.05,-r*1.08,-r*0.55,-r*1.06,-r*0.05);
+  X.bezierCurveTo(-r*1.08,r*0.38,-r*0.92,r*0.90,-r*0.68,r*1.12);
+  X.bezierCurveTo(-r*0.40,r*1.30,-r*0.05,r*1.22,r*0.00,r*1.0);
+  X.bezierCurveTo(-r*0.18,r*0.45,-r*0.38,r*0.05,-r*0.22,-r*0.52);
+  X.closePath(); X.fill();
+  X.beginPath();
+  X.moveTo(r*0.18,-r*0.90);
+  X.bezierCurveTo(r*0.55,-r*1.05,r*1.08,-r*0.55,r*1.06,-r*0.05);
+  X.bezierCurveTo(r*1.08,r*0.38,r*0.92,r*0.90,r*0.68,r*1.12);
+  X.bezierCurveTo(r*0.40,r*1.30,r*0.05,r*1.22,r*0.00,r*1.0);
+  X.bezierCurveTo(r*0.18,r*0.45,r*0.38,r*0.05,r*0.22,-r*0.52);
+  X.closePath(); X.fill();
+
+  // ── Head / face ───────────────────────────────────────────────────
+  X.fillStyle='#fde8ca';
+  X.beginPath(); X.ellipse(0,r*0.06,r*0.68,r*0.80,0,0,Math.PI*2); X.fill();
+
+  // ── Hair front cap (center-parted) ────────────────────────────────
+  X.fillStyle=hc;
+  X.beginPath();
+  X.arc(0,-r*0.08,r*0.70,Math.PI*1.07,Math.PI*1.93);
+  X.bezierCurveTo(r*0.58,-r*0.12,r*0.52,r*0.08,r*0.32,r*0.04);
+  X.quadraticCurveTo(r*0.10,-r*0.22,0,-r*0.32);
+  X.quadraticCurveTo(-r*0.10,-r*0.22,-r*0.32,r*0.04);
+  X.bezierCurveTo(-r*0.52,r*0.08,-r*0.58,-r*0.12,-r*0.70,-r*0.38);
+  X.closePath(); X.fill();
+  // hair sheen
+  X.fillStyle='rgba(80,60,130,0.14)';
+  X.beginPath(); X.ellipse(-r*0.14,-r*0.56,r*0.11,r*0.07,-0.5,0,Math.PI*2); X.fill();
+  X.beginPath(); X.ellipse(r*0.10,-r*0.64,r*0.07,r*0.045,0.4,0,Math.PI*2); X.fill();
+
+  // ── Cheeks ────────────────────────────────────────────────────────
+  X.fillStyle='rgba(255,110,95,0.22)';
+  X.beginPath(); X.ellipse(-r*0.42,r*0.30,r*0.17,r*0.095,0,0,Math.PI*2); X.fill();
+  X.beginPath(); X.ellipse(r*0.42,r*0.30,r*0.17,r*0.095,0,0,Math.PI*2); X.fill();
+
+  // ── Eyes ──────────────────────────────────────────────────────────
+  const ey=r*0.10, ex=r*0.32;
+  const blinkT=now%4.2, blink=blinkT>4.05;
+  if(blink){
+    X.strokeStyle='#0d0d18'; X.lineWidth=r*0.06; X.lineCap='round';
+    X.beginPath(); X.moveTo(-ex-r*0.18,ey); X.lineTo(-ex+r*0.18,ey); X.stroke();
+    X.beginPath(); X.moveTo(ex-r*0.18,ey); X.lineTo(ex+r*0.18,ey); X.stroke();
+  } else {
+    X.fillStyle='#fff';
+    X.beginPath(); X.ellipse(-ex,ey,r*0.195,r*0.235,0,0,Math.PI*2); X.fill();
+    X.beginPath(); X.ellipse(ex,ey,r*0.195,r*0.235,0,0,Math.PI*2); X.fill();
+    // iris — dark, near-black
+    X.fillStyle='#161420';
+    X.beginPath(); X.ellipse(-ex,ey+r*0.02,r*0.150,r*0.185,0,0,Math.PI*2); X.fill();
+    X.beginPath(); X.ellipse(ex,ey+r*0.02,r*0.150,r*0.185,0,0,Math.PI*2); X.fill();
+    // upper eyelid arc
+    X.strokeStyle='#090910'; X.lineWidth=r*0.055; X.lineCap='round';
+    X.beginPath();
+    X.moveTo(-ex-r*0.20,ey-r*0.01);
+    X.quadraticCurveTo(-ex,ey-r*0.29,-ex+r*0.20,ey-r*0.01);
+    X.stroke();
+    X.beginPath();
+    X.moveTo(ex-r*0.20,ey-r*0.01);
+    X.quadraticCurveTo(ex,ey-r*0.29,ex+r*0.20,ey-r*0.01);
+    X.stroke();
+    // outer lash tips
+    X.lineWidth=r*0.038;
+    X.beginPath(); X.moveTo(-ex-r*0.20,ey-r*0.01); X.lineTo(-ex-r*0.26,ey-r*0.07); X.stroke();
+    X.beginPath(); X.moveTo(ex+r*0.20,ey-r*0.01); X.lineTo(ex+r*0.26,ey-r*0.07); X.stroke();
+    // large highlight oval
+    X.fillStyle='rgba(255,255,255,0.94)';
+    X.beginPath(); X.ellipse(-ex-r*0.055,ey-r*0.075,r*0.072,r*0.090,-0.3,0,Math.PI*2); X.fill();
+    X.beginPath(); X.ellipse(ex-r*0.055,ey-r*0.075,r*0.072,r*0.090,-0.3,0,Math.PI*2); X.fill();
+    // small lower highlight
+    X.beginPath(); X.arc(-ex+r*0.085,ey+r*0.09,r*0.036,0,Math.PI*2); X.fill();
+    X.beginPath(); X.arc(ex+r*0.085,ey+r*0.09,r*0.036,0,Math.PI*2); X.fill();
+  }
+
+  // ── Eyebrows (thin, slightly arched) ──────────────────────────────
+  X.strokeStyle='#1c1428'; X.lineWidth=r*0.042; X.lineCap='round';
+  X.beginPath();
+  X.moveTo(-ex-r*0.18,ey-r*0.30);
+  X.quadraticCurveTo(-ex,ey-r*0.40,-ex+r*0.18,ey-r*0.28);
+  X.stroke();
+  X.beginPath();
+  X.moveTo(ex-r*0.18,ey-r*0.28);
+  X.quadraticCurveTo(ex,ey-r*0.40,ex+r*0.18,ey-r*0.30);
+  X.stroke();
+
+  // ── Nose (tiny dot) ───────────────────────────────────────────────
+  X.fillStyle='rgba(185,125,85,0.65)';
+  X.beginPath(); X.arc(0,r*0.36,r*0.032,0,Math.PI*2); X.fill();
+
+  // ── Mouth ─────────────────────────────────────────────────────────
+  X.strokeStyle='#b86858'; X.lineWidth=r*0.036; X.lineCap='round';
+  X.beginPath(); X.arc(0,r*0.50,r*0.095,0.20,Math.PI-0.20); X.stroke();
+
+  // ── Pearl hair clips ──────────────────────────────────────────────
+  [-r*0.20,0,r*0.20].forEach(px2=>{
+    X.fillStyle='#eaeaf8';
+    X.beginPath(); X.arc(px2,-r*0.78,r*0.055,0,Math.PI*2); X.fill();
+    X.strokeStyle='rgba(170,150,210,0.8)'; X.lineWidth=r*0.018; X.stroke();
+  });
+
+  X.restore(); // end clip
+
+  // ── Oval border ───────────────────────────────────────────────────
+  X.strokeStyle='rgba(150,110,210,0.80)';
+  X.lineWidth=r*0.07;
+  X.beginPath(); X.ellipse(0,0,r,r*1.12,0,0,Math.PI*2); X.stroke();
+  X.strokeStyle='rgba(210,185,255,0.35)';
+  X.lineWidth=r*0.03;
+  X.beginPath(); X.ellipse(0,0,r*0.90,r*1.01,0,0,Math.PI*2); X.stroke();
+
+  // ── Speech bubble (only for large portrait in popup) ──────────────
+  if(label && r>30){
+    const fs=Math.round(r*0.19);
+    X.font=`bold ${fs}px Segoe UI`;
+    const tw=X.measureText(label).width;
+    const bw2=Math.max(tw+14,r*1.05), bh2=r*0.40;
+    const sbx=r*0.12, sby=-r*1.32;
+    X.fillStyle='rgba(255,255,255,0.94)';
+    roundRect(X,sbx,sby,bw2,bh2,r*0.12); X.fill();
+    X.strokeStyle='rgba(110,75,195,0.55)'; X.lineWidth=r*0.025; X.stroke();
+    X.fillStyle='rgba(255,255,255,0.94)';
+    X.beginPath();
+    X.moveTo(sbx+bw2*0.22,sby+bh2);
+    X.lineTo(sbx+bw2*0.10,sby+bh2+r*0.24);
+    X.lineTo(sbx+bw2*0.40,sby+bh2);
+    X.fill();
+    X.fillStyle='#2c1a90'; X.textAlign='left';
+    X.fillText(label, sbx+r*0.12, sby+bh2*0.70);
+  }
+
+  X.restore();
+}
+
 // ── Unlock popup modal ────────────────────────────────────────────────
 function drawUnlockPopup(now){
   const pd=G.popupData;
@@ -266,6 +446,9 @@ function drawUnlockPopup(now){
   X.shadowBlur=0;
 
   const cx=bx+pw/2;
+
+  // chibi girl portrait on left side of popup
+  drawChibiPortrait(bx+68, by+(isGL?ph*0.50:ph*0.50), 52, now, isGL?'All set!':'New!');
 
   if(isGL){
     X.fillStyle='#ffe066'; X.font='bold 22px monospace'; X.textAlign='center';
@@ -359,7 +542,7 @@ function drawUnlockPopup(now){
 let _gridCanvas=null, _gridSig=null;
 function drawGrid(){
   const hc=G.hoverCell?G.hoverCell.join(','):'-';
-  const sig=hc+'|'+(G.selectedTower||'-');
+  const sig=hc+'|'+(G.selectedTower||'-')+'|'+flatView;
   if(!_gridCanvas||_gridCanvas.width!==LW||_gridCanvas.height!==LH){
     _gridCanvas=document.createElement('canvas');
     _gridCanvas.width=LW; _gridCanvas.height=LH;
