@@ -11,6 +11,8 @@ A browser-based tower defense game built with HTML5 Canvas. **No install, no loa
 - **Place towers** — click a tower type in the panel (or press 1–5), then click any open grid cell
 - **Start a wave** — click **Start Wave** or press **Space**
 - **Pause** — press **P** or click **Pause**
+- **Speed** — click **SPEED** to cycle 1x → 2x → 4x → 8x
+- **View** — toggle between flat and 3D isometric view
 - **Upgrade / Sell** — click a placed tower to see options in the panel
 - **Escape** — returns to the splash screen
 
@@ -56,9 +58,10 @@ Towers can be upgraded up to **level 3** (30 gold per level).
 ## Deploy
 
 ### Local
+```bash
+bash run.sh
 ```
-open index.html
-```
+Kills any existing process on port 8080, starts a Python HTTP server, and opens the browser automatically.
 
 ### Railway
 ```
@@ -77,4 +80,4 @@ Push to a repo, enable Pages on the `main` branch — loads in under 1 second, z
 bash git_status.sh   # interactive git helper
 ```
 
-Single-file game: all logic, rendering, and audio are in `index.html`. No build step, no dependencies.
+No build step, no dependencies. Logic is split across `js/` modules (render, audio, towers, monsters, game, ui, input). Serves via Python's built-in HTTP server with `no-store` cache headers for instant dev iteration.
