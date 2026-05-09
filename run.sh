@@ -2,7 +2,8 @@
 echo "Starting Tower Defense at http://localhost:8080"
 
 # Kill anything already holding port 8080
-fuser -k 8080/tcp 2>/dev/null && sleep 0.3
+fuser -k 8080/tcp 2>/dev/null
+for i in 1 2 3 4 5; do fuser 8080/tcp 2>/dev/null || break; sleep 0.3; done
 
 cd "/home/samsung1466/Python/tower_defense/"
 python3 app.py &

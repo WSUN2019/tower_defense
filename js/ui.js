@@ -697,8 +697,8 @@ function drawSplash(now){
       X.restore();
     }
   }
-  updateParticles(dt); drawParticles();
-  updateBullets(dt); drawBullets();
+  drawParticles();
+  drawBullets();
 
   const titleFont=isPortrait?'bold 40px monospace':'bold 72px monospace';
   const titleY=isPortrait?110:160;
