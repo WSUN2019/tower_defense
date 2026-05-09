@@ -25,7 +25,7 @@ function shadeColor(col, pct){
 function lightenColor(col,pct){return shadeColor(col,pct);}
 
 // ── View mode ─────────────────────────────────────────────────────────
-let flatView = false;
+let flatView = true;
 
 // ── Isometric projection helpers ──────────────────────────────────────
 function toIso(lx, ly) {
@@ -103,26 +103,29 @@ function updateBullets(dt){
   for(let i=bullets.length-1;i>=0;i--){
     const b=bullets[i];
     b.trail.unshift({x:b.x,y:b.y});
-    if(b.trail.length>8) b.trail.pop();
+    if(b.trail.length>4) b.trail.pop();
     b.x+=b.vx*dt; b.y+=b.vy*dt;
     const dist=Math.hypot(b.tx-b.x,b.ty-b.y);
     if(dist<6||b.life<0) bullets.splice(i,1);
   }
 }
 function drawBullets(){
+  const mazeX=GX, mazeY=GY, mazeW=COLS*CS, mazeH=ROWS*CS;
+  X.save();
+  X.beginPath();
+  X.rect(mazeX, mazeY, mazeW, mazeH);
+  X.clip();
   for(const b of bullets){
     for(let i=0;i<b.trail.length;i++){
-      const a=(1-i/b.trail.length)*0.5;
+      const a=(1-i/b.trail.length)*0.4;
       X.globalAlpha=a; X.fillStyle=b.color;
       X.beginPath(); X.arc(b.trail[i].x,b.trail[i].y,(b.r*(1-i/b.trail.length))||0.5,0,Math.PI*2); X.fill();
     }
     X.globalAlpha=1; X.fillStyle=b.color;
     X.beginPath(); X.arc(b.x,b.y,b.r,0,Math.PI*2); X.fill();
-    X.globalAlpha=0.3;
-    X.fillStyle=b.color;
-    X.beginPath(); X.arc(b.x,b.y,b.r*2.5,0,Math.PI*2); X.fill();
     X.globalAlpha=1;
   }
+  X.restore();
 }
 
 // ── Tile drawing ──────────────────────────────────────────────────────
