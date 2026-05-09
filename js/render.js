@@ -59,10 +59,14 @@ function lerp(a,b,t){return a+(b-a)*t;}
 
 // ── Particle system ───────────────────────────────────────────────────
 const particles=[];
+const PARTICLE_CAP=400;
 function spawnParticles(x,y,n,opts={}) {
-  for(let i=0;i<n;i++){
+  const room=PARTICLE_CAP-particles.length;
+  if(room<=0) return;
+  const count=Math.min(n,room);
+  const [ix, iy] = toIso(x, y);
+  for(let i=0;i<count;i++){
     const a=Math.random()*Math.PI*2, spd=(opts.spd||60)*(0.5+Math.random());
-    const [ix, iy] = toIso(x, y);
     particles.push({
       x:ix, y:iy, vx:Math.cos(a)*spd, vy:Math.sin(a)*spd - (opts.up||0),
       life:1, maxLife:(opts.life||0.6)*(0.7+Math.random()*0.6),
@@ -90,7 +94,9 @@ function drawParticles(){
 
 // ── Bullet/effect system ──────────────────────────────────────────────
 const bullets=[];
+const BULLET_CAP=200;
 function spawnBullet(x,y,tx,ty,opts={}){
+  if(bullets.length>=BULLET_CAP) return;
   const [sx, sy] = toIso(x, y);
   const [ex, ey] = toIso(tx, ty);
   const dx=ex-sx, dy=ey-sy, dist=Math.hypot(dx,dy)||1;

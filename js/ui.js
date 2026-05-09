@@ -601,8 +601,7 @@ function drawGame(now){
 
   drawParticles();
 
-  const sortedM=[...G.monsters].sort((a,b)=>a.y-b.y);
-  for(const m of sortedM) if(!m.dead) drawMonster(m,now);
+  for(const m of (G.aliveMonsters||G.monsters)) if(!m.dead) drawMonster(m,now);
 
   drawHUD(now);
   drawPanel(now);

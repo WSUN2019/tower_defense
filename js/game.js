@@ -81,8 +81,9 @@ function updateGame(dt, now){
   dt *= G.speed;
   G.time+=dt;
 
+  G.aliveMonsters=G.monsters.filter(m=>!m.dead&&!m.reached);
   for(const t of Object.values(G.towers))
-    t.update(dt, G.monsters, now);
+    t.update(dt, G.aliveMonsters, now);
 
   const newBlobs=[];
   for(const m of G.monsters){
@@ -104,7 +105,12 @@ function updateGame(dt, now){
     }
   }
   G.monsters.push(...newBlobs);
-  G.monsters=G.monsters.filter(m=>!m.dead||!m._rewarded);
+  for(let i=G.monsters.length-1;i>=0;i--){
+    if(G.monsters[i].dead&&G.monsters[i]._rewarded){
+      G.monsters[i]=G.monsters[G.monsters.length-1];
+      G.monsters.pop();
+    }
+  }
 
   if(G.state==='wave'){
     G.stateTimer-=dt;

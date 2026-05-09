@@ -293,7 +293,7 @@ class Tower {
     const lx = GX + this.col * CS + CS / 2;
     const ly = GY + this.row * CS + CS / 2;
     const rng=td.rad*CS;
-    const inRange=monsters.filter(m=>!m.dead&&!m.reached&&Math.hypot(m.x-lx,m.y-ly)<=rng);
+    const inRange=monsters.filter(m=>Math.hypot(m.x-lx,m.y-ly)<=rng);
     if(!inRange.length) return;
 
     inRange.sort((a,b)=>b.pathIdx-a.pathIdx);
@@ -310,7 +310,7 @@ class Tower {
         spawnParticles(m.x,m.y,10,{spd:60,life:0.4,r:3,color:'#fff',gravity:50});
         SFX.bombFire();
         monsters.forEach(em=>{
-          if(!em.dead&&!em.reached&&Math.hypot(em.x-m.x,em.y-m.y)<=aoeR)
+          if(Math.hypot(em.x-m.x,em.y-m.y)<=aoeR)
             em.hp-=td.dmg*(1+this.level*0.4);
         });
         spawnBullet(lx,ly,m.x,m.y,{color:'#f80',r:5,spd:300,kind:'bomb'});

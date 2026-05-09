@@ -101,13 +101,16 @@ function drawSpeedBtn(){
   if(!G) return;
   const {x,y,w,h}=speedBtnBounds();
   roundRect(X,x,y,w,h,8);
-  const fast = G.speed > 1;
-  X.fillStyle=fast?'rgba(20,80,40,0.85)':'rgba(10,30,60,0.85)'; X.fill();
-  X.strokeStyle=fast?'#4f4':'#4af'; X.lineWidth=1; X.stroke();
-  X.fillStyle=fast?'#8f8':'#8cf'; X.font='bold 11px monospace'; X.textAlign='center';
+  const spd = G.speed;
+  const bg   = spd>=8?'rgba(80,20,20,0.9)':spd>=4?'rgba(80,50,10,0.9)':spd>=2?'rgba(20,80,40,0.85)':'rgba(10,30,60,0.85)';
+  const ring = spd>=8?'#f44':spd>=4?'#fa4':spd>=2?'#4f4':'#4af';
+  const fg   = spd>=8?'#faa':spd>=4?'#fc8':spd>=2?'#8f8':'#8cf';
+  X.fillStyle=bg; X.fill();
+  X.strokeStyle=ring; X.lineWidth=1; X.stroke();
+  X.fillStyle=fg; X.font='bold 11px monospace'; X.textAlign='center';
   X.fillText('SPEED', x+w/2, y+h/2-3);
-  X.fillStyle=fast?'#4a4':'#46a'; X.font='9px monospace';
-  X.fillText(G.speed+'X', x+w/2, y+h/2+9);
+  X.fillStyle=ring; X.font='9px monospace';
+  X.fillText(spd+'X', x+w/2, y+h/2+9);
 }
 
 // ── SFX ───────────────────────────────────────────────────────────────

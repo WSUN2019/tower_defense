@@ -82,7 +82,7 @@ function handleClick(lx,ly){
   if(appState.screen==='game' && G){
     const sb=speedBtnBounds();
     if(lx>=sb.x&&lx<=sb.x+sb.w&&ly>=sb.y&&ly<=sb.y+sb.h){
-      G.speed = G.speed === 1 ? 2 : 1; return;
+      G.speed = G.speed === 1 ? 2 : G.speed === 2 ? 4 : G.speed === 4 ? 8 : 1; return;
     }
     const vb=viewBtnBounds();
     if(lx>=vb.x&&lx<=vb.x+vb.w&&ly>=vb.y&&ly<=vb.y+vb.h){
